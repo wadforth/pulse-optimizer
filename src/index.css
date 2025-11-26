@@ -1,0 +1,462 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Pulse - Purple/Blue Gradient Design System */
+    --background: 222 47% 11%;
+    /* #0F172A Dark Slate */
+    --surface: 217 33% 17%;
+    /* #1E293B Darker Slate */
+    --card: 217 33% 19%;
+    /* Slightly lighter surface */
+    --foreground: 0 0% 98%;
+    /* Almost white */
+
+    /* Primary - Purple Gradient */
+    --primary: 280 90% 60%;
+    /* #7C3AED Deep Purple */
+    --primary-dark: 270 85% 65%;
+    /* #8B5CF6 Violet */
+    --primary-foreground: 0 0% 100%;
+    /* White */
+    --primary-glow: 280 90% 60%;
+
+    /* Secondary - Blue Gradient */
+    --secondary: 217 91% 60%;
+    /* #3B82F6 Electric Blue */
+    --secondary-dark: 199 89% 48%;
+    /* #0EA5E9 Sky Blue */
+    --secondary-foreground: 0 0% 100%;
+
+    /* Accent Colors */
+    --accent: 160 84% 39%;
+    /* #10B981 Emerald */
+    --accent-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    /* #F59E0B Amber */
+    --danger: 350 89% 60%;
+    /* #F43F5E Rose */
+
+    /* UI Elements */
+    --muted: 217 33% 25%;
+    --muted-foreground: 217 15% 65%;
+    --border: 217 33% 23%;
+    --border-bright: 280 80% 55%;
+    --input: 217 33% 19%;
+    --ring: 280 90% 60%;
+
+    /* Destructive */
+    --destructive: 350 89% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Popover */
+    --popover: 217 33% 17%;
+    --popover-foreground: 0 0% 98%;
+  }
+
+  .light {
+    /* Pulse Light Mode */
+    --background: 0 0% 98%;
+    /* Almost white */
+    --surface: 0 0% 95%;
+    /* Light gray */
+    --card: 0 0% 97%;
+    --foreground: 222 47% 11%;
+    /* Dark slate text */
+
+    --primary: 280 90% 55%;
+    /* Slightly darker purple */
+    --primary-dark: 270 85% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217 91% 55%;
+    --secondary-dark: 199 89% 43%;
+    --secondary-foreground: 0 0% 100%;
+
+    --accent: 160 84% 35%;
+    --accent-foreground: 0 0% 100%;
+    --warning: 38 92% 45%;
+    --danger: 350 89% 55%;
+
+    --muted: 0 0% 88%;
+    --muted-foreground: 0 0% 40%;
+    --border: 0 0% 90%;
+    --border-bright: 280 80% 60%;
+    --input: 0 0% 95%;
+    --ring: 280 90% 55%;
+
+    --destructive: 350 89% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --popover: 0 0% 97%;
+    --popover-foreground: 222 47% 11%;
+  }
+
+  /* Light Theme Component Overrides */
+  /* All dark backgrounds become white */
+  .light .bg-\[\#0a0e13\],
+  .light .bg-\[\#1a1f2e\],
+  .light .bg-\[\#2a2f3e\],
+  .light .bg-\[rgb\(10\,14\,19\)\],
+  .light [class*="bg-[#"],
+  .light [class*="bg-rgb"] {
+    background-color: #ffffff !important;
+    border-color: #e5e7eb !important;
+  }
+
+  /* Black opacity backgrounds */
+  .light .bg-black\/5,
+  .light .bg-black\/10,
+  .light .bg-black\/20,
+  .light .bg-black\/30,
+  .light .bg-black\/40,
+  .light .bg-black\/50 {
+    background-color: rgba(0, 0, 0, 0.03) !important;
+  }
+
+  /* White opacity backgrounds */
+  .light .bg-white\/5,
+  .light .bg-white\/10,
+  .light .bg-white\/\[0\.02\],
+  .light .bg-white\/\[0\.03\],
+  .light .bg-white\/\[0\.05\] {
+    background-color: rgba(0, 0, 0, 0.02) !important;
+  }
+
+  /* All white text becomes foreground color */
+  .light .text-white,
+  .light [class*="text-white"] {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  /* Muted text */
+  .light .text-muted-foreground {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+
+  /* Borders */
+  .light .border-white\/5,
+  .light .border-white\/10,
+  .light .border-white\/20 {
+    border-color: hsl(var(--border)) !important;
+  }
+
+  /* All gradient backgrounds become solid white */
+  /* BUT: preserve gradients when used with bg-clip-text (for logo) */
+  .light .bg-gradient-to-br:not(.bg-clip-text),
+  .light .bg-gradient-to-b:not(.bg-clip-text),
+  .light .bg-gradient-to-r:not(.bg-clip-text),
+  .light .bg-gradient-to-l:not(.bg-clip-text),
+  .light .bg-gradient-to-t:not(.bg-clip-text),
+  .light .bg-gradient-to-bl:not(.bg-clip-text),
+  .light .bg-gradient-to-tr:not(.bg-clip-text),
+  .light .bg-gradient-to-tl:not(.bg-clip-text) {
+    background: #ffffff !important;
+    background-image: none !important;
+  }
+
+  /* Keep gradient text visible in light mode */
+  .light .bg-clip-text {
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+  }
+
+  /* Gradient color stops */
+  .light .from-\[\#1a1f2e\],
+  .light .via-\[\#0a0e13\],
+  .light .to-\[\#0a0e13\],
+  .light .from-transparent,
+  .light .to-white\/\[0\.02\],
+  .light [class*="from-[#"],
+  .light [class*="via-[#"],
+  .light [class*="to-[#"] {
+    --tw-gradient-from: transparent !important;
+    --tw-gradient-to: transparent !important;
+    --tw-gradient-stops: transparent !important;
+  }
+
+  /* Shadow adjustments */
+  .light .shadow-lg,
+  .light .shadow-xl,
+  .light .shadow-2xl {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  /* Sidebar specific - ensure it's light */
+  .light aside,
+  .light nav {
+    background-color: #f9fafb !important;
+    border-color: hsl(var(--border)) !important;
+  }
+
+  /* Cards - force light background */
+  .light .rounded-xl,
+  .light .rounded-lg,
+  .light .rounded-2xl,
+  .light .rounded-3xl {
+    background-color: #ffffff;
+    border-color: #e5e7eb;
+  }
+
+  /* Fix logos/images in light mode - remove blur if any */
+  .light img,
+  .light svg {
+    filter: none !important;
+  }
+
+  /* Ensure all headings use foreground color */
+  .light h1,
+  .light h2,
+  .light h3,
+  .light h4,
+  .light h5,
+  .light h6 {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  /* Typography colors */
+  .light .text-gray-400,
+  .light .text-gray-500,
+  .light .text-gray-600 {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+
+  /* Remove text glow effects in light mode - fixes blurry logo */
+  .light .text-glow-purple,
+  .light .text-glow-blue {
+    text-shadow: none !important;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  body:not(.light) {
+    background: linear-gradient(135deg, hsl(220, 20%, 8%) 0%, hsl(220, 25%, 6%) 100%);
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Custom Utility Classes */
+@layer utilities {
+
+  /* Glassmorphism */
+  .glass {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  /* Glow Effects - Purple/Blue Theme */
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.3),
+      0 0 40px rgba(124, 58, 237, 0.1);
+  }
+
+  .glow-purple-strong {
+    box-shadow: 0 0 30px rgba(124, 58, 237, 0.5),
+      0 0 60px rgba(124, 58, 237, 0.2);
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3),
+      0 0 40px rgba(59, 130, 246, 0.1);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3),
+      0 0 40px rgba(16, 185, 129, 0.1);
+  }
+
+  /* Text Glow - Purple/Blue */
+  .text-glow-purple {
+    text-shadow: 0 0 10px rgba(124, 58, 237, 0.6),
+      0 0 20px rgba(124, 58, 237, 0.3);
+  }
+
+  .text-glow-blue {
+    text-shadow: 0 0 10px rgba(59, 130, 246, 0.6),
+      0 0 20px rgba(59, 130, 246, 0.3);
+  }
+
+  /* Gradient Borders */
+  .border-gradient-cyan {
+    border-image: linear-gradient(135deg, rgba(6, 182, 212, 0.5), rgba(168, 85, 247, 0.5)) 1;
+  }
+
+  /* Premium Card */
+  .card-premium {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  .card-premium:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(6, 182, 212, 0.3);
+  }
+
+  /* Interactive Elements */
+  .interactive {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .interactive:hover {
+    transform: translateY(-2px);
+  }
+
+  .interactive:active {
+    transform: translateY(0);
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.03) 25%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.03) 75%);
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Custom Scrollbar - Purple */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.3);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.5);
+  background-clip: padding-box;
+}
+
+/* Selection - Purple */
+::selection {
+  background: rgba(124, 58, 237, 0.3);
+  color: hsl(var(--foreground));
+}
+
+/* Draggable Region for Custom Titlebar */
+.titlebar-drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Focus Styles - Purple */
+*:focus-visible {
+  outline: 2px solid rgba(124, 58, 237, 0.5);
+  outline-offset: 2px;
+}
+
+/* Loading Skeleton */
+.skeleton {
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.03) 25%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.03) 75%);
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+  border-radius: 0.5rem;
+}
+
+/* Techny Backgrounds Removed for Cleaner Look */
+.bg-grid-pattern {
+  background-image: none;
+}
+
+.scanline {
+  display: none;
+}
