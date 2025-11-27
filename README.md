@@ -1,13 +1,22 @@
-# ⚡ Pulse Optimizer
+# ⚡ Pulse Optimizer v2.0.0
 
-> A modern, powerful Windows gaming optimization tool built with Electron, React, and TypeScript
+> A modern, powerful Windows gaming optimization tool built with Electron, React, and TypeScript. Now featuring a completely redesigned "Gamer Professional" UI.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)](https://www.microsoft.com/windows)
+[![Version](https://img.shields.io/badge/version-2.0.0-violet.svg)](https://github.com/wadforth/pulse-optimizer/releases)
 [![Electron](https://img.shields.io/badge/Electron-Latest-47848F?logo=electron)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://reactjs.org/)
 
 ---
+
+## 🌟 What's New in v2.0.0
+
+*   **Complete UI Redesign**: A stunning new "Professional Gamer" aesthetic with glassmorphism, gradients, and advanced animations.
+*   **New Loading Screen**: Immersive startup experience with dynamic initialization steps.
+*   **Enhanced Tools**: Expanded DNS options, improved Hosts file editor, and new blocklists.
+*   **Improved Navigation**: New top navigation bar with smooth transitions and window controls.
+*   **Performance Boosts**: Optimized graph rendering and smoother interactions.
 
 ## 📸 Screenshots
 

@@ -25,7 +25,8 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false
-        }
+        },
+        icon: path.join(process.env.PUBLIC || '', 'icon.png')
     })
 
     if (VITE_DEV_SERVER_URL) {
@@ -39,12 +40,12 @@ app.whenReady().then(() => {
     createWindow()
 
     // Window controls
-    ipcMain.handle('minimize-window', () => win?.minimize())
-    ipcMain.handle('maximize-window', () => {
+    ipcMain.handle('window-minimize', () => win?.minimize())
+    ipcMain.handle('window-maximize', () => {
         if (win?.isMaximized()) win?.unmaximize()
         else win?.maximize()
     })
-    ipcMain.handle('close-window', () => win?.close())
+    ipcMain.handle('window-close', () => win?.close())
 
     // User info
     ipcMain.handle('get-user-info', () => ({ username: os.userInfo().username }))
@@ -105,49 +106,48 @@ app.whenReady().then(() => {
 
             return {
                 cpu: Math.round(currentLoad.currentLoad),
-                mem: Math.round((mem.used / mem.total) * 100),
-                gpu: Math.round(gpuLoad),
-                gpuAvailable
+                mem: Math.round((mem.active / mem.total) * 100),
+                gpu: gpuAvailable ? Math.round(gpuLoad) : 0,
+                gpuName: graphics.controllers[0]?.model || 'Unknown GPU'
             }
         } catch (error) {
             return { cpu: 0, mem: 0, gpu: 0, gpuAvailable: false }
         }
     })
 
-    // Display info
-    ipcMain.handle('get-display-info', async () => {
+    // Power Plan Management
+    ipcMain.handle('get-power-plan', async () => {
         return new Promise((resolve) => {
-            const command = `Get-WmiObject -Class Win32_VideoController | Select-Object CurrentHorizontalResolution, CurrentVerticalResolution, CurrentRefreshRate | ConvertTo-Json`
-            exec(`powershell -Command "${command}"`, (error, stdout) => {
+            exec('powercfg /getactivescheme', (error, stdout) => {
                 if (error) {
-                    const { screen } = require('electron')
-                    const displays = screen.getAllDisplays()
-                    const primary = displays[0]
-                    resolve({
-                        resolution: `${primary.size.width}x${primary.size.height}`,
-                        refreshRate: `${primary.displayFrequency || 60}Hz`
-                    })
+                    resolve({ name: 'Unknown', guid: '' })
                     return
                 }
-                try {
-                    const data = JSON.parse(stdout)
-                    const display = Array.isArray(data) ? data[0] : data
-                    const width = display.CurrentHorizontalResolution
-                    const height = display.CurrentVerticalResolution
-                    const refresh = display.CurrentRefreshRate || 60
-                    resolve({
-                        resolution: `${width}x${height}`,
-                        refreshRate: `${refresh}Hz`
-                    })
-                } catch {
-                    resolve({ resolution: '1920x1080', refreshRate: '60Hz' })
-                }
+                const match = stdout.match(/\(([^)]+)\)$/)
+                const name = match ? match[1] : 'Unknown'
+                const guidMatch = stdout.match(/GUID: ([a-f0-9-]+)/i)
+                const guid = guidMatch ? guidMatch[1] : ''
+                resolve({ name, guid })
             })
         })
     })
 
+    ipcMain.handle('set-power-plan', async (_, guid) => {
+        return new Promise((resolve) => {
+            const plans: Record<string, string> = {
+                'Balanced': '381b4222-f694-41f0-9685-ff5bb260df2e',
+                'High Performance': '8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c',
+                'Power Saver': 'a1841308-3541-4fab-bc81-f71556f20b4a',
+                'Ultimate Performance': 'e9a42b02-d5df-448d-aa00-03f14749eb61'
+            }
+            const targetGuid = plans[guid] || guid
+            exec(`powercfg /setactive ${targetGuid}`, (error) => {
+                resolve({ success: !error })
+            })
+        })
+    })
 
-    // System specs - FIXED
+    // System specs
     ipcMain.handle('get-system-specs', async () => {
         const si = require('systeminformation')
         try {
@@ -527,7 +527,7 @@ app.whenReady().then(() => {
                     } catch {}
 
                     # Method 2: NVIDIA SMI (Fallback)
-                    if (!$gpuData -or ($gpuData | Measure-Object GPU -Sum).Sum -eq 0) {
+                    if (!$gpuData) {
                         if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
                             try {
                                 # Quote the format string to avoid PowerShell parsing comma as array separator
@@ -538,7 +538,7 @@ app.whenReady().then(() => {
                                         $line = $_.Trim()
                                         if ($line) {
                                             $pidStr = $line.Trim()
-                                            if ($pidStr -match '^\\d+$') {
+                                            if ($pidStr -match '^\d+$') {
                                                 [PSCustomObject]@{
                                                     PID = [int]$pidStr
                                                     GPU = 0
@@ -581,8 +581,24 @@ app.whenReady().then(() => {
                 `
             }
 
-            const encodedCommand = Buffer.from(command, 'utf16le').toString('base64')
-            exec(`powershell -EncodedCommand "${encodedCommand}"`, (error, stdout) => {
+            // Write PowerShell script to temp file to avoid command line length limits
+            const tempScriptPath = path.join(os.tmpdir(), `pulse-ps-${Date.now()}.ps1`)
+            try {
+                fs.writeFileSync(tempScriptPath, command, 'utf8')
+            } catch (e) {
+                console.error('Failed to write temp script:', e)
+                resolve({ processes: [], available: false })
+                return
+            }
+
+            exec(`powershell -ExecutionPolicy Bypass -File "${tempScriptPath}"`, (error, stdout) => {
+                // Clean up temp file
+                try {
+                    fs.unlinkSync(tempScriptPath)
+                } catch (e) {
+                    // Ignore cleanup errors
+                }
+
                 if (error) {
                     console.error('Top processes error:', error)
                     resolve({ processes: [], available: false })
@@ -802,7 +818,7 @@ app.whenReady().then(() => {
                         file.close()
                         fs.unlink(downloadPath, () => { })
                         downloadProgressMap.delete(filename)
-                        resolve({ success: false, error: `Failed to download: ${response.statusCode}` })
+                        resolve({ success: false, error: `Failed to download: ${response.statusCode} ` })
                         return
                     }
 
@@ -851,7 +867,7 @@ app.whenReady().then(() => {
     // Install software
     ipcMain.handle('install-software', async (_, { filePath, args }) => {
         return new Promise((resolve) => {
-            const command = `"${filePath}" ${args ? args.join(' ') : ''}`
+            const command = `"${filePath}" ${args ? args.join(' ') : ''} `
             exec(command, (error) => {
                 if (error) {
                     resolve({ success: false, error: error.message })
@@ -866,13 +882,31 @@ app.whenReady().then(() => {
     ipcMain.handle('check-installed-software', (_, softwareId) => {
         const patterns: Record<string, string[]> = {
             'steam': ['HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam', 'HKLM\\SOFTWARE\\Valve\\Steam'],
+            'epic': ['HKLM\\SOFTWARE\\WOW6432Node\\Epic Games\\EpicGamesLauncher'],
+            'battlenet': ['HKLM\\SOFTWARE\\WOW6432Node\\Blizzard Entertainment\\Battle.net'],
+            'ea': ['HKLM\\SOFTWARE\\WOW6432Node\\Electronic Arts\\EA Desktop'],
+            'gog': ['HKLM\\SOFTWARE\\WOW6432Node\\GOG.com\\GalaxyClient'],
+            'ubisoft': ['HKLM\\SOFTWARE\\WOW6432Node\\Ubisoft\\Launcher'],
+            'riot': ['HKCU\\Software\\Riot Games'],
             'discord': ['HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Discord'],
             'chrome': ['HKLM\\SOFTWARE\\WOW6432Node\\Google\\Chrome', 'HKLM\\SOFTWARE\\Google\\Chrome'],
+            'firefox': ['HKLM\\SOFTWARE\\Mozilla\\Mozilla Firefox'],
+            'brave': ['HKLM\\SOFTWARE\\WOW6432Node\\BraveSoftware\\Brave-Browser'],
+            'opera_gx': ['HKCU\\Software\\Opera Software'],
+            'edge': ['HKLM\\SOFTWARE\\Microsoft\\Edge'],
             'nvidia': ['HKLM\\SOFTWARE\\NVIDIA Corporation\\Installer2\\GeForce Experience'],
-            'vscode': ['HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{771FD6B0-FA20-440A-A002-3B3BAC16DC50}_is1'],
+            'vscode': ['HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{771FD6B0-FA20-440A-A002-3B3BAC16DC50}_is1', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\VS Code'],
+            '7zip': ['HKLM\\SOFTWARE\\7-Zip'],
+            'notepadpp': ['HKLM\\SOFTWARE\\Notepad++'],
+            'winrar': ['HKLM\\SOFTWARE\\WinRAR'],
+            'cpuz': ['HKLM\\SOFTWARE\\CPUID\\CPU-Z'],
+            'hwmonitor': ['HKLM\\SOFTWARE\\CPUID\\HWMonitor'],
+            'afterburner': ['HKLM\\SOFTWARE\\WOW6432Node\\MSI\\Afterburner'],
             'obs': ['HKLM\\SOFTWARE\\WOW6432Node\\OBS Studio', 'HKLM\\SOFTWARE\\OBS Studio'],
             'spotify': ['HKCU\\SOFTWARE\\Spotify'],
-            'vlc': ['HKLM\\SOFTWARE\\WOW6432Node\\VideoLAN\\VLC', 'HKLM\\SOFTWARE\\VideoLAN\\VLC']
+            'vlc': ['HKLM\\SOFTWARE\\WOW6432Node\\VideoLAN\\VLC', 'HKLM\\SOFTWARE\\VideoLAN\\VLC'],
+            'audacity': ['HKLM\\SOFTWARE\\WOW6432Node\\Audacity'],
+            'handbrake': ['HKLM\\SOFTWARE\\HandBrake']
         }
         const paths = patterns[softwareId] || []
         return new Promise(async (resolve) => {
@@ -911,7 +945,18 @@ app.whenReady().then(() => {
             'mixedreality': 'C:\\Program Files\\WindowsApps\\Microsoft.MixedReality.Portal*',
             '3dviewer': 'C:\\Program Files\\WindowsApps\\Microsoft.Microsoft3DViewer*',
             'yourphone': 'C:\\Program Files\\WindowsApps\\Microsoft.YourPhone*',
-            'edge_legacy': 'C:\\Windows\\SystemApps\\Microsoft.MicrosoftEdge*'
+            'edge_legacy': 'C:\\Windows\\SystemApps\\Microsoft.MicrosoftEdge*',
+            'skype': 'C:\\Program Files\\WindowsApps\\Microsoft.SkypeApp*',
+            'solitaire': 'C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftSolitaireCollection*',
+            'calculator': 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsCalculator*',
+            'alarms': 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsAlarms*',
+            'camera': 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsCamera*',
+            'soundrecorder': 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsSoundRecorder*',
+            'paint3d': 'C:\\Program Files\\WindowsApps\\Microsoft.MSPaint*',
+            'groove': 'C:\\Program Files\\WindowsApps\\Microsoft.ZuneMusic*',
+            'movies': 'C:\\Program Files\\WindowsApps\\Microsoft.ZuneVideo*',
+            'stickynotes': 'C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftStickyNotes*',
+            'snip': 'C:\\Program Files\\WindowsApps\\Microsoft.ScreenSketch*'
         }
         const servicesToCheck: Record<string, string> = { 'telemetry': 'DiagTrack' }
         const pathToCheck = paths[bloatwareId]
@@ -943,6 +988,69 @@ app.whenReady().then(() => {
             }
         }
         return { isInstalled: false }
+    })
+
+    // Remove Bloatware
+    ipcMain.handle('remove-bloatware', async (_, bloatwareId) => {
+        if (process.platform !== 'win32') return { success: false, error: 'Not Windows' }
+
+        const packageNames: Record<string, string> = {
+            'cortana': 'Microsoft.549981C3F5F10',
+            'xbox': 'Microsoft.XboxGamingOverlay',
+            'weather': 'Microsoft.BingWeather',
+            'news': 'Microsoft.BingNews',
+            'maps': 'Microsoft.WindowsMaps',
+            'photos': 'Microsoft.Windows.Photos',
+            'people': 'Microsoft.People',
+            'gethelp': 'Microsoft.GetHelp',
+            'feedback': 'Microsoft.WindowsFeedbackHub',
+            'mixedreality': 'Microsoft.MixedReality.Portal',
+            '3dviewer': 'Microsoft.Microsoft3DViewer',
+            'yourphone': 'Microsoft.YourPhone',
+            'skype': 'Microsoft.SkypeApp',
+            'solitaire': 'Microsoft.MicrosoftSolitaireCollection',
+            'calculator': 'Microsoft.WindowsCalculator',
+            'alarms': 'Microsoft.WindowsAlarms',
+            'camera': 'Microsoft.WindowsCamera',
+            'soundrecorder': 'Microsoft.WindowsSoundRecorder',
+            'paint3d': 'Microsoft.MSPaint',
+            'groove': 'Microsoft.ZuneMusic',
+            'movies': 'Microsoft.ZuneVideo',
+            'stickynotes': 'Microsoft.MicrosoftStickyNotes',
+            'snip': 'Microsoft.ScreenSketch'
+        }
+
+        const packageName = packageNames[bloatwareId]
+
+        if (packageName) {
+            return new Promise((resolve) => {
+                const cmd = `powershell -Command "Get-AppxPackage *${packageName}* | Remove-AppxPackage"`
+                exec(cmd, (error) => {
+                    resolve({ success: !error, error: error?.message })
+                })
+            })
+        }
+
+        // Special handling for non-Appx bloatware
+        if (bloatwareId === 'onedrive') {
+            return new Promise((resolve) => {
+                const cmd = `taskkill /f /im OneDrive.exe & %SystemRoot%\\System32\\OneDriveSetup.exe /uninstall`
+                exec(cmd, (error) => {
+                    resolve({ success: !error, error: error?.message })
+                })
+            })
+        }
+
+        if (bloatwareId === 'telemetry') {
+            return new Promise((resolve) => {
+                const cmd = `sc stop DiagTrack & sc config DiagTrack start= disabled`
+                exec(cmd, (error) => {
+                    resolve({ success: !error, error: error?.message })
+                })
+            })
+        }
+
+        return { success: false, error: 'Unknown bloatware ID' }
     })
 
     // DNS Settings
@@ -980,7 +1088,7 @@ app.whenReady().then(() => {
                     resolve({ success: !error, error: error?.message })
                 })
             } else {
-                const dnsServers = secondary ? `"${primary}","${secondary}"` : `"${primary}"`
+                const dnsServers = secondary ? `"${primary}", "${secondary}"` : `"${primary}"`
                 const cmd = `powershell -Command "Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | Set-DnsClientServerAddress -ServerAddresses ${dnsServers}"`
                 exec(cmd, (error) => {
                     resolve({ success: !error, error: error?.message })
@@ -1022,9 +1130,18 @@ app.whenReady().then(() => {
     })
 
     ipcMain.handle('restart-as-admin', () => {
-        // For Windows, we'd need to use runas or similar
-        // This is a placeholder - actual implementation would require elevation
-        return { success: false, message: 'Please manually restart the app as Administrator' }
+        const appPath = app.getPath('exe')
+        const spawn = require('child_process').spawn
+
+        // Spawn a new process with admin privileges using PowerShell
+        const child = spawn('powershell.exe', ['Start-Process', `"${appPath}"`, '-Verb', 'RunAs'], {
+            detached: true,
+            stdio: 'ignore'
+        })
+
+        child.unref()
+        app.quit()
+        return { success: true }
     })
 
     // Network Speed Test
@@ -1178,109 +1295,109 @@ app.whenReady().then(() => {
         const scriptPath = path.join(app.getPath('userData'), 'get_startup_items.ps1')
 
         const psScript = `
-$items = @()
-$locations = @(
-    @{ Path = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ApprovedPath = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run"; Root = "HKCU" },
-    @{ Path = "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ApprovedPath = "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run"; Root = "HKLM" },
-    @{ Path = "HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run"; ApprovedPath = "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32"; Root = "HKLM (32-bit)" }
-)
+                $items = @()
+                $locations = @(
+                    @{ Path = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ApprovedPath = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run"; Root = "HKCU" },
+                    @{ Path = "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ApprovedPath = "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run"; Root = "HKLM" },
+                    @{ Path = "HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run"; ApprovedPath = "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32"; Root = "HKLM (32-bit)" }
+                )
 
-foreach ($loc in $locations) {
-    if (Test-Path $loc.Path) {
-        $properties = Get-ItemProperty $loc.Path -ErrorAction SilentlyContinue
-        if ($properties) {
-            $properties | Get-Member -MemberType NoteProperty | Where-Object { $_.Name -notin @("PSPath", "PSParentPath", "PSChildName", "PSDrive", "PSProvider") } | ForEach-Object {
-                $name = $_.Name
-                $rawPath = $properties.$name
-                
-                # Extract clean path (handle quotes and args)
-                $cleanPath = $rawPath
-                if ($rawPath -match '^"([^"]+)"') {
-                    $cleanPath = $matches[1]
-                } elseif ($rawPath -match '^([^ ]+)') {
-                    $cleanPath = $matches[1]
-                }
+                foreach($loc in $locations) {
+                    if (Test-Path $loc.Path) {
+                        $properties = Get-ItemProperty $loc.Path -ErrorAction SilentlyContinue
+                        if ($properties) {
+                            $properties | Get-Member -MemberType NoteProperty | Where-Object { $_.Name -notin @("PSPath", "PSParentPath", "PSChildName", "PSDrive", "PSProvider") } | ForEach-Object {
+                                $name = $_.Name
+                                $rawPath = $properties.$name
+                            
+                                # Extract clean path (handle quotes and args)
+                                $cleanPath = $rawPath
+                                if ($rawPath -match '^"([^"]+)"') {
+                                    $cleanPath = $matches[1]
+                                } elseif ($rawPath -match '^([^ ]+)') {
+                                    $cleanPath = $matches[1]
+                                }
 
-                # Get Publisher
-                $publisher = "Unknown Publisher"
-                if (Test-Path $cleanPath) {
-                    try {
-                        $info = Get-Item $cleanPath -ErrorAction SilentlyContinue
-                        if ($info -and $info.VersionInfo -and $info.VersionInfo.CompanyName) {
-                            $publisher = $info.VersionInfo.CompanyName
-                        }
-                    } catch {}
-                }
+                                # Get Publisher
+                                $publisher = "Unknown Publisher"
+                                if (Test-Path $cleanPath) {
+                                    try {
+                                        $info = Get-Item $cleanPath -ErrorAction SilentlyContinue
+                                        if ($info -and $info.VersionInfo -and $info.VersionInfo.CompanyName) {
+                                            $publisher = $info.VersionInfo.CompanyName
+                                        }
+                                    } catch {}
+                                }
 
-                # Check Status
-                $enabled = $true
-                if (Test-Path $loc.ApprovedPath) {
-                    $approved = (Get-ItemProperty $loc.ApprovedPath).$name
-                    if ($approved) {
-                        # 0x02 is Enabled, 0x00 is usually Enabled (default), anything else (0x03, 0x01) is Disabled
-                        if ($approved[0] -ne 0x02 -and $approved[0] -ne 0x00) {
-                            $enabled = $false
+                                # Check Status
+                                $enabled = $true
+                                if (Test-Path $loc.ApprovedPath) {
+                                    $approved = (Get-ItemProperty $loc.ApprovedPath).$name
+                                    if ($approved) {
+                                        # 0x02 is Enabled, 0x00 is usually Enabled (default), anything else (0x03, 0x01) is Disabled
+                                        if ($approved[0] -ne 0x02 -and $approved[0] -ne 0x00) {
+                                            $enabled = $false
+                                        }
+                                    }
+                                }
+
+                                $items += [PSCustomObject]@{
+                                    name = $name
+                                    path = $rawPath
+                                    location = $loc.Root
+                                    publisher = $publisher
+                                    enabled = $enabled
+                                }
+                            }
                         }
                     }
                 }
-                
-                $items += [PSCustomObject]@{
-                    name = $name
-                    path = $rawPath
-                    location = $loc.Root
-                    publisher = $publisher
-                    enabled = $enabled
-                }
-            }
-        }
-    }
-}
 
-# Scan Startup Folders (User and Common)
-$folderLocations = @(
-    @{ Path = [Environment]::GetFolderPath('Startup'); ApprovedPath = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder"; Root = "Startup Folder (User)" },
-    @{ Path = [Environment]::GetFolderPath('CommonStartup'); ApprovedPath = "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder"; Root = "Startup Folder (Common)" }
-)
+                # Scan Startup Folders (User and Common)
+                $folderLocations = @(
+                    @{ Path = [Environment]::GetFolderPath('Startup'); ApprovedPath = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder"; Root = "Startup Folder (User)" },
+                    @{ Path = [Environment]::GetFolderPath('CommonStartup'); ApprovedPath = "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder"; Root = "Startup Folder (Common)" }
+                )
 
-$shell = New-Object -ComObject WScript.Shell
+                $shell = New-Object -ComObject WScript.Shell
 
-foreach ($loc in $folderLocations) {
-    if (Test-Path $loc.Path) {
-        Get-ChildItem $loc.Path -Filter *.lnk | ForEach-Object {
-            $name = $_.Name
-            $fullPath = $_.FullName
-            
-            # Resolve Shortcut
-            try {
-                $shortcut = $shell.CreateShortcut($fullPath)
-                $targetPath = $shortcut.TargetPath
-            } catch {
-                $targetPath = $fullPath
-            }
+                foreach($loc in $folderLocations) {
+                    if (Test-Path $loc.Path) {
+                        Get-ChildItem $loc.Path -Filter *.lnk | ForEach-Object {
+                            $name = $_.Name
+                            $fullPath = $_.FullName
+                            
+                            # Resolve Shortcut
+                            try {
+                                $shortcut = $shell.CreateShortcut($fullPath)
+                                $targetPath = $shortcut.TargetPath
+                            } catch {
+                                $targetPath = $fullPath
+                            }
 
-            # Get Publisher
-            $publisher = "Unknown Publisher"
-            if (Test-Path $targetPath) {
-                try {
-                    $info = Get-Item $targetPath -ErrorAction SilentlyContinue
-                    if ($info -and $info.VersionInfo -and $info.VersionInfo.CompanyName) {
-                        $publisher = $info.VersionInfo.CompanyName
+                            # Get Publisher
+                            $publisher = "Unknown Publisher"
+                            if (Test-Path $targetPath) {
+                                try {
+                                    $info = Get-Item $targetPath -ErrorAction SilentlyContinue
+                                    if ($info -and $info.VersionInfo -and $info.VersionInfo.CompanyName) {
+                                        $publisher = $info.VersionInfo.CompanyName
+                                    }
+                                } catch {}
+                            }
+
+                            $items += [PSCustomObject]@{
+                                name = $name
+                                path = $targetPath
+                                location = $loc.Root
+                                publisher = $publisher
+                                enabled = $true
+                            }
+                        }
                     }
-                } catch {}
-            }
+                }
 
-            $items += [PSCustomObject]@{
-                name = $name
-                path = $targetPath
-                location = $loc.Root
-                publisher = $publisher
-                enabled = $true 
-            }
-        }
-    }
-}
-
-$items | ConvertTo-Json -Depth 2
+                $items | ConvertTo-Json -Depth 2
 `
 
         fs.writeFileSync(scriptPath, psScript)
@@ -1327,9 +1444,6 @@ $items | ConvertTo-Json -Depth 2
             approvedPath = 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run'
             root = 'HKLM'
         } else if (location.includes('Startup Folder')) {
-            // For Startup Folder items, "disabling" usually means moving them or renaming them.
-            // A safer approach for this app might be to just warn the user, or use the ApprovedStartup mechanism if applicable.
-            // Windows 8+ supports StartupApproved\StartupFolder.
             if (location.includes('User')) {
                 approvedPath = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder'
             } else {
@@ -1339,43 +1453,28 @@ $items | ConvertTo-Json -Depth 2
 
         if (!approvedPath) return { success: false, error: 'Unknown location type' }
 
-        // PowerShell script to toggle
-        // 0x02 = Enabled
-        // 0x03 = Disabled (User)
-        // 0x00 = Enabled (Default)
-        // We will set to 0x02 for Enable, 0x03 for Disable.
-        const targetValue = enabled ? '0x02' : '0x03'
-
-        // We need to handle the binary data correctly. 
-        // StartupApproved keys are REG_BINARY. The first byte is the state.
-        // We will read the existing value, modify the first byte, and write it back.
-        // If it doesn't exist, we create a default one.
-
         const psScript = `
-        $path = "${approvedPath}"
-        $name = "${name}"
-        $enable = $${enabled}
-        
-        if (-not (Test-Path $path)) {
-            New-Item -Path $path -Force | Out-Null
-        }
+$path = "${approvedPath}"
+$name = "${name}"
+$enable = $${enabled}
 
-        $current = (Get-ItemProperty -Path $path -Name $name -ErrorAction SilentlyContinue).$name
-        
-        if (-not $current) {
-            # Create new binary value. Default enabled is 02 00 00 00 ...
-            # We'll just create a small binary array.
-            $current = @(0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
-        }
+if (-not (Test-Path $path)) {
+    New-Item -Path $path -Force | Out-Null
+}
 
-        # Modify first byte
-        if ($enable) {
-            $current[0] = 0x02
-        } else {
-            $current[0] = 0x03
-        }
+$current = (Get-ItemProperty -Path $path -Name $name -ErrorAction SilentlyContinue).$name
 
-        Set-ItemProperty -Path $path -Name $name -Value $current -Type Binary
+if (-not $current) {
+    $current = @(0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+}
+
+if ($enable) {
+    $current[0] = 0x02
+} else {
+    $current[0] = 0x03
+}
+
+Set-ItemProperty -Path $path -Name $name -Value $current -Type Binary
         `
 
         return new Promise((resolve) => {
@@ -1399,8 +1498,6 @@ $items | ConvertTo-Json -Depth 2
     ipcMain.handle('show-item-in-folder', async (_, itemPath) => {
         if (!itemPath) return { success: false }
         try {
-            // If it's a file, show it. If it's a directory, open it.
-            // shell.showItemInFolder(fullPath)
             shell.showItemInFolder(itemPath)
             return { success: true }
         } catch (error: any) {
@@ -1418,120 +1515,187 @@ $items | ConvertTo-Json -Depth 2
         switch (categoryId) {
             case 'temp':
                 psScript = `
-        $path = $env:TEMP
-        if (Test-Path $path) {
-            Get-ChildItem -Path $path -Recurse -File -Force -ErrorAction SilentlyContinue | 
-            Select-Object FullName, Length | 
-            ForEach-Object { 
-                [PSCustomObject]@{
-                    path = $_.FullName
-                    size = $_.Length
-                }
-            } | ConvertTo-Json
+$path = $env:TEMP
+if (Test-Path $path) {
+    Get-ChildItem -Path $path -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Select-Object FullName, Length |
+            ForEach-Object {
+        [PSCustomObject]@{
+            path = $_.FullName
+            size = $_.Length
         }
-        `
+    } | ConvertTo-Json
+}
+`
                 break
             case 'downloads':
                 psScript = `
-        $path = "$env:USERPROFILE\\Downloads"
-        if (Test-Path $path) {
-            Get-ChildItem -Path $path -File -Force -ErrorAction SilentlyContinue | 
-            Select-Object FullName, Length | 
-            ForEach-Object { 
-                [PSCustomObject]@{
-                    path = $_.FullName
-                    size = $_.Length
-                }
-            } | ConvertTo-Json
+$path = "$env:USERPROFILE\\Downloads"
+if (Test-Path $path) {
+    Get-ChildItem -Path $path -File -Force -ErrorAction SilentlyContinue |
+        Select-Object FullName, Length |
+            ForEach-Object {
+        [PSCustomObject]@{
+            path = $_.FullName
+            size = $_.Length
         }
-        `
+    } | ConvertTo-Json
+}
+`
                 break
             case 'recycle':
                 psScript = `
-        $shell = New-Object -ComObject Shell.Application
-        $bin = $shell.Namespace(0xA)
-        $bin.Items() | ForEach-Object {
-            [PSCustomObject]@{
-                path = $_.Path
-                size = $_.Size
-            }
-        } | ConvertTo-Json
-        `
+$shell = New-Object -ComObject Shell.Application
+$bin = $shell.Namespace(0xA)
+$bin.Items() | ForEach-Object {
+    [PSCustomObject]@{
+        path = $_.Path
+        size = $_.Size
+    }
+} | ConvertTo-Json
+    `
                 break
             case 'chrome_cache':
                 psScript = `
-        $path = "$env:LOCALAPPDATA\\Google\\Chrome\\User Data\\Default\\Cache"
-        if (Test-Path $path) {
-            Get-ChildItem -Path $path -Recurse -File -Force -ErrorAction SilentlyContinue | 
-            Select-Object FullName, Length | 
-            ForEach-Object { 
-                [PSCustomObject]@{
-                    path = $_.FullName
-                    size = $_.Length
-                }
-            } | ConvertTo-Json
+$path = "$env:LOCALAPPDATA\\Google\\Chrome\\User Data\\Default\\Cache"
+if (Test-Path $path) {
+    Get-ChildItem -Path $path -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Select-Object FullName, Length |
+            ForEach-Object {
+        [PSCustomObject]@{
+            path = $_.FullName
+            size = $_.Length
         }
-        `
+    } | ConvertTo-Json
+}
+`
                 break
             case 'edge_cache':
                 psScript = `
-        $path = "$env:LOCALAPPDATA\\Microsoft\\Edge\\User Data\\Default\\Cache"
-        if (Test-Path $path) {
-            Get-ChildItem -Path $path -Recurse -File -Force -ErrorAction SilentlyContinue | 
-            Select-Object FullName, Length | 
-            ForEach-Object { 
-                [PSCustomObject]@{
-                    path = $_.FullName
-                    size = $_.Length
-                }
-            } | ConvertTo-Json
+$path = "$env:LOCALAPPDATA\\Microsoft\\Edge\\User Data\\Default\\Cache"
+if (Test-Path $path) {
+    Get-ChildItem -Path $path -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Select-Object FullName, Length |
+            ForEach-Object {
+        [PSCustomObject]@{
+            path = $_.FullName
+            size = $_.Length
         }
-        `
+    } | ConvertTo-Json
+}
+`
                 break
             case 'prefetch':
                 psScript = `
-        $path = "C:\\Windows\\Prefetch"
-        if (Test-Path $path) {
-            Get-ChildItem -Path $path -File -Force -ErrorAction SilentlyContinue | 
-            Select-Object FullName, Length | 
-            ForEach-Object { 
-                [PSCustomObject]@{
-                    path = $_.FullName
-                    size = $_.Length
-                }
-            } | ConvertTo-Json
+$path = "C:\\Windows\\Prefetch"
+if (Test-Path $path) {
+    Get-ChildItem -Path $path -File -Force -ErrorAction SilentlyContinue |
+        Select-Object FullName, Length |
+            ForEach-Object {
+        [PSCustomObject]@{
+            path = $_.FullName
+            size = $_.Length
         }
-        `
+    } | ConvertTo-Json
+}
+`
                 break
             case 'windows_update':
                 psScript = `
-        $path = "C:\\Windows\\SoftwareDistribution\\Download"
-        if (Test-Path $path) {
-            Get-ChildItem -Path $path -Recurse -File -Force -ErrorAction SilentlyContinue | 
-            Select-Object FullName, Length | 
-            ForEach-Object { 
-                [PSCustomObject]@{
-                    path = $_.FullName
-                    size = $_.Length
-                }
-            } | ConvertTo-Json
+$path = "C:\\Windows\\SoftwareDistribution\\Download"
+if (Test-Path $path) {
+    Get-ChildItem -Path $path -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Select-Object FullName, Length |
+            ForEach-Object {
+        [PSCustomObject]@{
+            path = $_.FullName
+            size = $_.Length
         }
-        `
+    } | ConvertTo-Json
+}
+`
                 break
             case 'logs':
                 psScript = `
-        $path = "C:\\Windows\\System32\\winevt\\Logs"
-        if (Test-Path $path) {
-            Get-ChildItem -Path $path -File -Force -ErrorAction SilentlyContinue | 
-            Select-Object FullName, Length | 
-            ForEach-Object { 
-                [PSCustomObject]@{
+$path = "C:\\Windows\\System32\\winevt\\Logs"
+if (Test-Path $path) {
+    Get-ChildItem -Path $path -File -Force -ErrorAction SilentlyContinue |
+        Select-Object FullName, Length |
+            ForEach-Object {
+        [PSCustomObject]@{
+            path = $_.FullName
+            size = $_.Length
+        }
+    } | ConvertTo-Json
+}
+`
+                break
+            case 'discord_cache':
+                psScript = `
+$paths = @(
+    "$env:APPDATA\\discord\\Cache",
+    "$env:APPDATA\\discord\\Code Cache",
+    "$env:APPDATA\\discord\\GPUCache"
+)
+$files = @()
+foreach ($p in $paths) {
+    if (Test-Path $p) {
+        Get-ChildItem -Path $p -Recurse -File -Force -ErrorAction SilentlyContinue |
+            ForEach-Object {
+                $files += [PSCustomObject]@{
                     path = $_.FullName
                     size = $_.Length
                 }
-            } | ConvertTo-Json
+            }
+    }
+}
+$files | ConvertTo-Json
+`
+                break
+            case 'steam_cache':
+                psScript = `
+$path = "C:\\Program Files (x86)\\Steam\\appcache"
+if (Test-Path $path) {
+    Get-ChildItem -Path $path -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Select-Object FullName, Length |
+            ForEach-Object {
+        [PSCustomObject]@{
+            path = $_.FullName
+            size = $_.Length
         }
-        `
+    } | ConvertTo-Json
+}
+`
+                break
+            case 'crash_dumps':
+                psScript = `
+$path = "$env:LOCALAPPDATA\\CrashDumps"
+if (Test-Path $path) {
+    Get-ChildItem -Path $path -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Select-Object FullName, Length |
+            ForEach-Object {
+        [PSCustomObject]@{
+            path = $_.FullName
+            size = $_.Length
+        }
+    } | ConvertTo-Json
+}
+`
+                break
+            case 'shader_cache':
+                psScript = `
+$path = "$env:LOCALAPPDATA\\D3DSCache"
+if (Test-Path $path) {
+    Get-ChildItem -Path $path -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Select-Object FullName, Length |
+            ForEach-Object {
+        [PSCustomObject]@{
+            path = $_.FullName
+            size = $_.Length
+        }
+    } | ConvertTo-Json
+}
+`
                 break
             default:
                 return { success: false, files: [], totalSize: 0 }
@@ -1576,47 +1740,73 @@ $items | ConvertTo-Json -Depth 2
         switch (categoryId) {
             case 'temp':
                 psScript = `
-        Remove-Item -Path "$env:TEMP\\*" -Recurse -Force -ErrorAction SilentlyContinue
-        `
+Remove-Item -Path "$env:TEMP\\*" -Recurse -Force -ErrorAction SilentlyContinue
+    `
                 break
             case 'downloads':
                 // Only delete contents, not the folder
                 psScript = `
-        Remove-Item -Path "$env:USERPROFILE\\Downloads\\*" -Recurse -Force -ErrorAction SilentlyContinue
-        `
+Remove-Item -Path "$env:USERPROFILE\\Downloads\\*" -Recurse -Force -ErrorAction SilentlyContinue
+    `
                 break
             case 'recycle':
                 psScript = `
-        Clear-RecycleBin -Force -ErrorAction SilentlyContinue
-        `
+Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+    `
                 break
             case 'chrome_cache':
                 psScript = `
-        Remove-Item -Path "$env:LOCALAPPDATA\\Google\\Chrome\\User Data\\Default\\Cache\\*" -Recurse -Force -ErrorAction SilentlyContinue
-        `
+Remove-Item -Path "$env:LOCALAPPDATA\\Google\\Chrome\\User Data\\Default\\Cache\\*" -Recurse -Force -ErrorAction SilentlyContinue
+    `
                 break
             case 'edge_cache':
                 psScript = `
-        Remove-Item -Path "$env:LOCALAPPDATA\\Microsoft\\Edge\\User Data\\Default\\Cache\\*" -Recurse -Force -ErrorAction SilentlyContinue
-        `
+Remove-Item -Path "$env:LOCALAPPDATA\\Microsoft\\Edge\\User Data\\Default\\Cache\\*" -Recurse -Force -ErrorAction SilentlyContinue
+    `
                 break
             case 'prefetch':
                 psScript = `
-        Remove-Item -Path "C:\\Windows\\Prefetch\\*" -Recurse -Force -ErrorAction SilentlyContinue
-        `
+Remove-Item -Path "C:\\Windows\\Prefetch\\*" -Recurse -Force -ErrorAction SilentlyContinue
+    `
                 break
             case 'windows_update':
                 psScript = `
-        Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "C:\\Windows\\SoftwareDistribution\\Download\\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Start-Service -Name wuauserv -ErrorAction SilentlyContinue
-        `
+Remove-Item -Path "C:\\Windows\\SoftwareDistribution\\Download\\*" -Recurse -Force -ErrorAction SilentlyContinue
+    `
                 break
             case 'logs':
                 psScript = `
-        Get-EventLog -LogName * | ForEach-Object { Clear-EventLog -LogName $_.Log }
-        `
+Remove-Item -Path "C:\\Windows\\System32\\winevt\\Logs\\*" -Recurse -Force -ErrorAction SilentlyContinue
+    `
                 break
+            case 'discord_cache':
+                psScript = `
+$paths = @(
+    "$env:APPDATA\\discord\\Cache\\*",
+    "$env:APPDATA\\discord\\Code Cache\\*",
+    "$env:APPDATA\\discord\\GPUCache\\*"
+)
+foreach ($p in $paths) {
+    Remove-Item -Path $p -Recurse -Force -ErrorAction SilentlyContinue
+}
+    `
+                break
+            case 'steam_cache':
+                psScript = `
+Remove-Item -Path "C:\\Program Files (x86)\\Steam\\appcache\\*" -Recurse -Force -ErrorAction SilentlyContinue
+    `
+                break
+            case 'crash_dumps':
+                psScript = `
+Remove-Item -Path "$env:LOCALAPPDATA\\CrashDumps\\*" -Recurse -Force -ErrorAction SilentlyContinue
+    `
+                break
+            case 'shader_cache':
+                psScript = `
+Remove-Item -Path "$env:LOCALAPPDATA\\D3DSCache\\*" -Recurse -Force -ErrorAction SilentlyContinue
+    `
+                break
+
             default:
                 return { success: false, message: 'Unknown category' }
         }
@@ -1624,7 +1814,7 @@ $items | ConvertTo-Json -Depth 2
         try {
             fs.writeFileSync(scriptPath, psScript)
             return new Promise((resolve) => {
-                exec(`powershell -ExecutionPolicy Bypass -File "${scriptPath}"`, (error) => {
+                exec(`powershell - ExecutionPolicy Bypass - File "${scriptPath}"`, (error) => {
                     if (fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath)
 
                     if (error) {

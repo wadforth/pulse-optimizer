@@ -1,4 +1,4 @@
-import { Trash2, AlertTriangle, Check, FileCode, ShieldAlert, Search, RefreshCw, Download, X } from 'lucide-react'
+import { Trash2, AlertTriangle, Check, FileCode, ShieldAlert, Search, RefreshCw, Download, X, Package, Info, CheckCircle, AlertOctagon } from 'lucide-react'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { clsx } from 'clsx'
 import { useLog } from '../context/LogContext'
@@ -30,7 +30,18 @@ const bloatwareList: Bloatware[] = [
     { id: 'mixedreality', name: 'Mixed Reality Portal', description: 'VR/AR headset management.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.MixedReality.Portal_*', risk: 'Low', breakage: 'VR headset functionality', isInstalled: false, isRemoved: false },
     { id: '3dviewer', name: '3D Viewer', description: 'App for viewing 3D models.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.Microsoft3DViewer_*', risk: 'Low', breakage: '3D file viewing', isInstalled: false, isRemoved: false },
     { id: 'yourphone', name: 'Phone Link', description: 'Sync your phone with Windows.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.YourPhone_*', risk: 'Low', breakage: 'Phone integration, SMS', isInstalled: false, isRemoved: false },
-    { id: 'edge_legacy', name: 'Edge Legacy', description: 'Legacy Edge browser remnants.', path: 'C:\\Windows\\SystemApps\\Microsoft.MicrosoftEdge_*', risk: 'Medium', breakage: 'Help docs, PDF fallback', isInstalled: false, isRemoved: false }
+    { id: 'edge_legacy', name: 'Edge Legacy', description: 'Legacy Edge browser remnants.', path: 'C:\\Windows\\SystemApps\\Microsoft.MicrosoftEdge_*', risk: 'Medium', breakage: 'Help docs, PDF fallback', isInstalled: false, isRemoved: false },
+    { id: 'skype', name: 'Skype', description: 'Video calling and messaging app.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.SkypeApp*', risk: 'Low', breakage: 'Skype functionality', isInstalled: false, isRemoved: false },
+    { id: 'solitaire', name: 'Solitaire Collection', description: 'Pre-installed card games.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftSolitaireCollection*', risk: 'Low', breakage: 'None', isInstalled: false, isRemoved: false },
+    { id: 'calculator', name: 'Calculator', description: 'Windows Calculator app.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsCalculator*', risk: 'Low', breakage: 'Calculator functionality', isInstalled: false, isRemoved: false },
+    { id: 'alarms', name: 'Alarms & Clock', description: 'Timer, alarm, and stopwatch app.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsAlarms*', risk: 'Low', breakage: 'Alarms and timers', isInstalled: false, isRemoved: false },
+    { id: 'camera', name: 'Camera', description: 'Webcam application.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsCamera*', risk: 'Low', breakage: 'Camera functionality', isInstalled: false, isRemoved: false },
+    { id: 'soundrecorder', name: 'Voice Recorder', description: 'Audio recording app.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsSoundRecorder*', risk: 'Low', breakage: 'Voice recording', isInstalled: false, isRemoved: false },
+    { id: 'paint3d', name: 'Paint 3D', description: '3D modeling and painting app.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.MSPaint*', risk: 'Low', breakage: '3D editing', isInstalled: false, isRemoved: false },
+    { id: 'groove', name: 'Groove Music', description: 'Legacy music player.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.ZuneMusic*', risk: 'Low', breakage: 'Music playback (use Media Player instead)', isInstalled: false, isRemoved: false },
+    { id: 'movies', name: 'Movies & TV', description: 'Video player app.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.ZuneVideo*', risk: 'Low', breakage: 'Video playback (use Media Player instead)', isInstalled: false, isRemoved: false },
+    { id: 'stickynotes', name: 'Sticky Notes', description: 'Desktop notes app.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftStickyNotes*', risk: 'Low', breakage: 'Sticky notes functionality', isInstalled: false, isRemoved: false },
+    { id: 'snip', name: 'Snip & Sketch', description: 'Screen capture tool.', path: 'C:\\Program Files\\WindowsApps\\Microsoft.ScreenSketch*', risk: 'Low', breakage: 'Screenshot functionality (Win+Shift+S)', isInstalled: false, isRemoved: false }
 ]
 
 export function Debloater() {
@@ -72,28 +83,41 @@ export function Debloater() {
         addLog('SYSTEM', 'Bloatware detection complete')
     }
 
-    const handleRemove = (app: Bloatware) => {
+    const handleRemove = async (app: Bloatware) => {
         if (!app.isInstalled) {
             addLog('SYSTEM', `${app.name} is not installed`)
             return
         }
         setRemoving(app.id)
         addLog('SYSTEM', `Initiating removal of ${app.name}...`)
-        setTimeout(() => {
+
+        try {
+            const result = await window.ipcRenderer?.invoke('remove-bloatware', app.id)
+            if (result?.success) {
+                setBloatware(prev => prev.map(b => b.id === app.id ? { ...b, isRemoved: true, isInstalled: false } : b))
+                addLog('SYSTEM', `Successfully removed ${app.name}`)
+            } else {
+                addLog('ERROR', `Failed to remove ${app.name}: ${result?.error}`)
+            }
+        } catch (error: any) {
+            addLog('ERROR', `Error removing ${app.name}: ${error.message}`)
+        } finally {
             setRemoving(null)
-            setBloatware(prev => prev.map(b => b.id === app.id ? { ...b, isRemoved: true, isInstalled: false } : b))
-            addLog('SYSTEM', `Successfully removed ${app.name}`)
-        }, 2000)
+        }
     }
 
-    const removeAllSafe = () => {
+    const removeAllSafe = async () => {
         const safeInstalled = bloatware.filter(b => b.risk === 'Low' && b.isInstalled && !b.isRemoved)
         if (safeInstalled.length === 0) {
             addLog('SYSTEM', 'No safe bloatware found to remove')
             return
         }
-        safeInstalled.forEach(app => handleRemove(app))
+
         addLog('SYSTEM', `Removing ${safeInstalled.length} low-risk items...`)
+        for (const app of safeInstalled) {
+            await handleRemove(app)
+        }
+        addLog('SYSTEM', 'Batch removal complete')
     }
 
     const exportReport = () => {
@@ -133,80 +157,88 @@ export function Debloater() {
 
     return (
         <div className="h-full flex flex-col p-6 space-y-6 relative overflow-hidden">
+            {/* Background Ambient Glow */}
+            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-rose-500/5 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-violet-500/5 rounded-full blur-[100px] pointer-events-none" />
+
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-wide text-white uppercase flex items-center gap-3">
-                        Windows Debloater
-                        <span className="text-sm font-mono font-normal text-muted-foreground bg-white/5 px-2 py-1 rounded border border-white/5 flex items-center gap-2">
-                            <Trash2 className="w-3.5 h-3.5 text-primary" />
+                    <h2 className="text-3xl font-bold tracking-tight text-white uppercase flex items-center gap-3 drop-shadow-lg">
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">Windows Debloater</span>
+                        <span className="text-xs font-mono font-bold text-rose-300 bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20 flex items-center gap-1.5 shadow-[0_0_15px_rgba(244,63,94,0.1)]">
+                            <Package className="w-3.5 h-3.5" />
                             {installedCount} INSTALLED
                         </span>
                     </h2>
-                    <p className="text-muted-foreground text-sm mt-1">
-                        Remove pre-installed bloatware and telemetry • {removedCount} removed this session
+                    <p className="text-muted-foreground text-sm mt-1 font-medium">
+                        Remove pre-installed bloatware and telemetry to reclaim performance.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                     <button
                         onClick={removeAllSafe}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 hover:border-green-500/30 transition-colors text-xs font-medium text-green-400"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/30 transition-all text-xs font-bold text-emerald-400 uppercase tracking-wide group"
                         title="Remove all low-risk installed items"
                     >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Remove All Safe</span>
+                        <Trash2 className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                        <span>Remove Safe</span>
                     </button>
                     <button
                         onClick={exportReport}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs font-medium text-muted-foreground hover:text-white"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-xs font-bold text-muted-foreground hover:text-white uppercase tracking-wide group"
                         title="Export report to file"
                     >
-                        <Download className="w-3.5 h-3.5" />
+                        <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
                         <span>Export</span>
                     </button>
                     <button
                         onClick={checkInstalled}
                         disabled={loading}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs font-medium text-muted-foreground hover:text-white disabled:opacity-50"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-xs font-bold text-muted-foreground hover:text-white uppercase tracking-wide group disabled:opacity-50"
                         title="Refresh status"
                     >
-                        <RefreshCw className={clsx("w-3.5 h-3.5", loading && "animate-spin")} />
+                        <RefreshCw className={clsx("w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500", loading && "animate-spin")} />
                         <span>Refresh</span>
                     </button>
                 </div>
             </div>
 
             {/* Warning Banner */}
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+            <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4 relative z-10 backdrop-blur-sm">
+                <div className="flex items-start gap-4">
+                    <div className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                        <AlertTriangle className="w-5 h-5 text-amber-400" />
+                    </div>
                     <div className="space-y-1">
-                        <h3 className="text-yellow-400 font-bold uppercase text-xs tracking-wide">Proceed with Caution</h3>
-                        <p className="text-muted-foreground text-xs leading-relaxed">
-                            Removing system apps can cause instability. Check the "Potential Breakage" field before proceeding.
+                        <h3 className="text-amber-400 font-bold uppercase text-xs tracking-widest">Proceed with Caution</h3>
+                        <p className="text-slate-400 text-xs leading-relaxed">
+                            Removing system apps can cause instability. Always check the "Potential Breakage" warning before removal.
                         </p>
                     </div>
                 </div>
             </div>
 
             {/* Controls Bar */}
-            <div className="flex flex-col lg:flex-row items-center gap-4 p-1 bg-white/[0.02] border border-white/5 rounded-xl">
+            <div className="flex flex-col lg:flex-row items-center gap-4 p-1.5 bg-[#0a0e13]/60 backdrop-blur-md border border-white/5 rounded-2xl relative z-10 shadow-lg">
                 {/* Filter Tabs */}
-                <div className="flex p-1 bg-black/20 rounded-lg flex-shrink-0 overflow-x-auto">
+                <div className="flex p-1 bg-black/20 rounded-xl flex-shrink-0 overflow-x-auto scrollbar-none">
                     {(['All', 'Installed', 'Not Installed', 'Low', 'Medium', 'High'] as const).map(f => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
                             className={clsx(
-                                "px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap",
-                                filter === f ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-white"
+                                "px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-2",
+                                filter === f ? "bg-rose-600 text-white shadow-lg shadow-rose-500/20" : "text-muted-foreground hover:text-white hover:bg-white/5"
                             )}
                         >
                             {f}
                             {f !== 'All' && f !== 'Installed' && f !== 'Not Installed' && (
                                 <span className={clsx(
-                                    "ml-1.5 px-1 rounded text-[9px]",
-                                    f === 'Low' ? "bg-green-500/20" : f === 'Medium' ? "bg-yellow-500/20" : "bg-red-500/20"
+                                    "px-1.5 py-0.5 rounded text-[9px]",
+                                    f === 'Low' ? "bg-emerald-500/20 text-emerald-300" :
+                                        f === 'Medium' ? "bg-amber-500/20 text-amber-300" :
+                                            "bg-rose-500/20 text-rose-300"
                                 )}>
                                     {bloatware.filter(b => b.risk === f).length}
                                 </span>
@@ -219,13 +251,13 @@ export function Debloater() {
 
                 {/* Search */}
                 <div className="relative w-full lg:w-64 flex-shrink-0 ml-auto">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <input
                         type="text"
-                        placeholder="Search bloatware..."
+                        placeholder="Search apps..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-black/20 border border-white/5 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors h-[34px]"
+                        className="w-full bg-black/20 border border-white/5 rounded-xl pl-10 pr-4 py-2.5 text-xs font-medium text-white placeholder:text-muted-foreground focus:outline-none focus:border-rose-500/50 focus:bg-black/40 transition-all"
                     />
                 </div>
             </div>
@@ -233,12 +265,15 @@ export function Debloater() {
             {/* Bloatware List */}
             {loading ? (
                 <div className="flex items-center justify-center h-full">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="w-12 h-12 border-4 border-rose-500/30 border-t-rose-500 rounded-full animate-spin" />
+                        <p className="text-rose-400 font-mono text-xs animate-pulse">SCANNING SYSTEM APPS...</p>
+                    </div>
                 </div>
             ) : (
-                <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                    <div className="grid grid-cols-1 gap-3 pb-6">
-                        <AnimatePresence>
+                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar relative z-10 pb-6">
+                    <div className="grid grid-cols-1 gap-3">
+                        <AnimatePresence mode='popLayout'>
                             {filteredBloatware.map(app => (
                                 <motion.div
                                     layout
@@ -247,63 +282,81 @@ export function Debloater() {
                                     exit={{ opacity: 0, scale: 0.95 }}
                                     key={app.id}
                                     className={clsx(
-                                        "group bg-[#0a0e13] border rounded-xl p-4 transition-all overflow-hidden",
-                                        app.isInstalled && !app.isRemoved ? "border-red-500/20 hover:border-red-500/30" : "border-white/5 hover:border-white/10"
+                                        "group bg-[#0a0e13]/80 backdrop-blur-sm border rounded-xl p-4 transition-all duration-300 overflow-hidden relative",
+                                        app.isInstalled && !app.isRemoved
+                                            ? "border-white/5 hover:border-rose-500/30 hover:shadow-[0_0_15px_rgba(244,63,94,0.1)]"
+                                            : "border-white/5 opacity-60 hover:opacity-100"
                                     )}
                                 >
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    {/* Active Glow Background for Installed Items */}
+                                    {app.isInstalled && !app.isRemoved && (
+                                        <div className="absolute inset-0 bg-gradient-to-r from-rose-500/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                    )}
+
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                <h3 className="font-bold text-sm text-white tracking-wide">{app.name}</h3>
-                                                <span className={clsx(
-                                                    "text-[10px] px-1.5 py-0.5 rounded border uppercase font-mono tracking-wider whitespace-nowrap",
-                                                    app.risk === 'Low' ? "border-green-500/30 text-green-400 bg-green-500/10" :
-                                                        app.risk === 'Medium' ? "border-yellow-500/30 text-yellow-400 bg-yellow-500/10" :
-                                                            "border-red-500/30 text-red-400 bg-red-500/10"
-                                                )}>
-                                                    {app.risk} Risk
-                                                </span>
-                                                {app.isInstalled && !app.isRemoved ? (
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20 uppercase font-mono tracking-wider">
-                                                        Installed
-                                                    </span>
-                                                ) : app.isRemoved ? (
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded border bg-green-500/10 text-green-400 border-green-500/20 uppercase font-mono tracking-wider">
-                                                        Removed
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded border bg-gray-500/10 text-gray-500 border-gray-500/20 uppercase font-mono tracking-wider">
-                                                        Not Installed
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className="text-xs text-muted-foreground mb-2">{app.description}</p>
-                                            <div className="grid grid-cols-1 gap-2 text-[10px] text-muted-foreground bg-white/[0.02] p-2 rounded border border-white/5">
+                                            <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                                <h3 className="font-bold text-sm text-white tracking-wide group-hover:text-rose-200 transition-colors">{app.name}</h3>
+
                                                 <div className="flex items-center gap-2">
-                                                    <FileCode className="w-3 h-3 text-primary flex-shrink-0" />
-                                                    <span className="truncate font-mono" title={app.path}>{app.path}</span>
+                                                    <span className={clsx(
+                                                        "text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold tracking-wider flex items-center gap-1",
+                                                        app.risk === 'Low' ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5" :
+                                                            app.risk === 'Medium' ? "border-amber-500/20 text-amber-400 bg-amber-500/5" :
+                                                                "border-rose-500/20 text-rose-400 bg-rose-500/5"
+                                                    )}>
+                                                        <AlertOctagon className="w-2.5 h-2.5" />
+                                                        {app.risk} Risk
+                                                    </span>
+
+                                                    {app.isInstalled && !app.isRemoved ? (
+                                                        <span className="text-[9px] px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20 uppercase font-bold tracking-wider flex items-center gap-1">
+                                                            <CheckCircle className="w-2.5 h-2.5" />
+                                                            Installed
+                                                        </span>
+                                                    ) : app.isRemoved ? (
+                                                        <span className="text-[9px] px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/20 uppercase font-bold tracking-wider flex items-center gap-1">
+                                                            <Check className="w-2.5 h-2.5" />
+                                                            Removed
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[9px] px-1.5 py-0.5 rounded border bg-white/5 text-muted-foreground border-white/10 uppercase font-bold tracking-wider flex items-center gap-1">
+                                                            <X className="w-2.5 h-2.5" />
+                                                            Not Installed
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <div className="flex items-center gap-2 text-red-400">
+                                            </div>
+
+                                            <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{app.description}</p>
+
+                                            <div className="grid grid-cols-1 gap-1.5">
+                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 font-mono bg-black/20 px-2 py-1 rounded border border-white/5 w-fit max-w-full">
+                                                    <FileCode className="w-3 h-3 text-rose-500/50 flex-shrink-0" />
+                                                    <span className="truncate" title={app.path}>{app.path}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[10px] font-medium text-rose-400/80">
                                                     <ShieldAlert className="w-3 h-3 flex-shrink-0" />
-                                                    <span className="uppercase font-bold">Breaks: {app.breakage}</span>
+                                                    <span className="uppercase tracking-wide">Potential Breakage: {app.breakage}</span>
                                                 </div>
                                             </div>
                                         </div>
+
                                         <button
                                             onClick={() => handleRemove(app)}
                                             disabled={!app.isInstalled || app.isRemoved || removing === app.id}
                                             className={clsx(
-                                                "px-4 py-2 rounded-lg font-bold transition-all flex items-center justify-center gap-2 min-w-[140px] text-xs uppercase tracking-wider whitespace-nowrap",
+                                                "px-5 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 min-w-[140px] text-xs uppercase tracking-wider whitespace-nowrap shadow-lg",
                                                 app.isRemoved
-                                                    ? "bg-white/5 text-muted-foreground cursor-default border border-white/5"
+                                                    ? "bg-emerald-500/10 text-emerald-400 cursor-default border border-emerald-500/20"
                                                     : !app.isInstalled
                                                         ? "bg-white/5 text-muted-foreground cursor-default border border-white/5"
-                                                        : "bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 hover:shadow-sm"
+                                                        : "bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-500/20 hover:shadow-rose-500/40 border border-transparent"
                                             )}
                                         >
                                             {removing === app.id ? (
                                                 <>
-                                                    <div className="w-3.5 h-3.5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                                     REMOVING...
                                                 </>
                                             ) : app.isRemoved ? (
@@ -330,13 +383,13 @@ export function Debloater() {
 
                         {filteredBloatware.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-                                <div className="p-4 bg-white/5 rounded-full mb-3">
-                                    <Search className="w-8 h-8 opacity-50" />
+                                <div className="p-6 bg-white/5 rounded-full mb-4 border border-white/5">
+                                    <Search className="w-10 h-10 opacity-30" />
                                 </div>
-                                <p className="text-sm">No bloatware found matching your filters.</p>
+                                <p className="text-sm font-medium">No bloatware found matching your filters.</p>
                                 <button
                                     onClick={() => { setSearchTerm(''); setFilter('All'); }}
-                                    className="mt-2 text-primary text-xs hover:underline"
+                                    className="mt-3 text-rose-400 text-xs font-bold uppercase tracking-wide hover:text-rose-300 hover:underline"
                                 >
                                     Clear filters
                                 </button>

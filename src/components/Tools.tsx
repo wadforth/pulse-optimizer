@@ -1,4 +1,4 @@
-import { Shield, Globe, Lock, RefreshCw, Check, FileText, AlertTriangle, Download, Save, RotateCcw, Activity, Search, Copy, Zap, BarChart3 } from 'lucide-react'
+import { Shield, Globe, Lock, RefreshCw, Check, FileText, AlertTriangle, Download, Save, RotateCcw, Activity, Search, Copy, Zap, BarChart3, Wifi, Server, FileCode, Trash2, ExternalLink } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
 import { clsx } from 'clsx'
 import { useLog } from '../context/LogContext'
@@ -23,7 +23,7 @@ const dnsProviders: DNSProvider[] = [
         secondary: '8.8.4.4',
         description: 'The most popular public DNS service. Fast and reliable.',
         pros: ['Very fast global response times', 'Highly reliable', 'Supports DNS-over-HTTPS'],
-        cons: ['Collects some usage data (privacy concern)', 'No built-in ad blocking'],
+        cons: ['Collects some usage data', 'No built-in ad blocking'],
         category: 'Fast'
     },
     {
@@ -33,7 +33,7 @@ const dnsProviders: DNSProvider[] = [
         secondary: '1.0.0.1',
         description: 'Focused on privacy and speed. Claims not to log IP addresses.',
         pros: ['Extremely fast (often fastest)', 'Strong privacy focus', 'No logging'],
-        cons: ['Can be aggressive with caching', 'No content filtering (standard version)'],
+        cons: ['Can be aggressive with caching', 'No content filtering'],
         category: 'Fast'
     },
     {
@@ -42,8 +42,8 @@ const dnsProviders: DNSProvider[] = [
         primary: '9.9.9.9',
         secondary: '149.112.112.112',
         description: 'Security-focused DNS that blocks malicious domains.',
-        pros: ['Blocks malware/phishing domains', 'Good privacy policy', 'Global anycast network'],
-        cons: ['Slightly slower than Cloudflare/Google', 'Can block legitimate sites (false positives)'],
+        pros: ['Blocks malware/phishing', 'Good privacy policy', 'Global anycast network'],
+        cons: ['Slightly slower than Cloudflare', 'Can block legitimate sites'],
         category: 'Secure'
     },
     {
@@ -52,16 +52,38 @@ const dnsProviders: DNSProvider[] = [
         primary: '94.140.14.14',
         secondary: '94.140.15.15',
         description: 'Blocks ads and trackers at the DNS level.',
-        pros: ['Blocks ads system-wide', 'Blocks trackers', 'Family protection options'],
-        cons: ['Can break some websites/apps', 'Slower than non-filtering DNS'],
+        pros: ['Blocks ads system-wide', 'Blocks trackers', 'Family protection'],
+        cons: ['Can break some websites', 'Slower than non-filtering DNS'],
         category: 'Ad-blocking'
+    },
+    {
+        id: 'opendns',
+        name: 'OpenDNS Home',
+        primary: '208.67.222.222',
+        secondary: '208.67.220.220',
+        description: 'Classic DNS with phishing protection and optional filtering.',
+        pros: ['Reliable and established', 'Phishing protection', 'Customizable filtering'],
+        cons: ['Requires account for customization', 'Slower than Google/Cloudflare'],
+        category: 'Secure'
+    },
+    {
+        id: 'cleanbrowsing',
+        name: 'CleanBrowsing',
+        primary: '185.228.168.9',
+        secondary: '185.228.169.9',
+        description: 'Family-safe DNS that blocks adult content.',
+        pros: ['Blocks adult content', 'Blocks malicious domains', 'No tracking'],
+        cons: ['Strict filtering', 'May block mixed content'],
+        category: 'Secure'
     }
 ]
 
 const blocklists = [
-    { name: 'StevenBlack Unified (Adware + Malware)', url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts' },
-    { name: 'StevenBlack Gambling', url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling/hosts' },
-    { name: 'StevenBlack Porn', url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn/hosts' }
+    { name: 'Unified (Adware + Malware)', url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts', description: 'Standard protection against ads and malware.' },
+    { name: 'Gambling', url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling/hosts', description: 'Blocks online gambling sites.' },
+    { name: 'Pornography', url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn/hosts', description: 'Blocks adult content sites.' },
+    { name: 'Social Media', url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/social/hosts', description: 'Blocks Facebook, Twitter, Instagram, etc.' },
+    { name: 'Fake News', url: 'https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts', description: 'Blocks known fake news sources.' }
 ]
 
 export function Tools() {
@@ -185,12 +207,39 @@ export function Tools() {
 
         if (result?.success) {
             const newContent = result.content
-            const header = `\n\n# Added by Pulse - ${name}\n`
+            const header = `\n\n# Added by Gaming Optimizer - ${name}\n`
             setHostsContent(prev => prev + header + newContent)
             addLog('SYSTEM', `Blocklist added to editor. Click Save to apply.`)
         } else {
             addLog('ERROR', `Failed to download blocklist: ${result?.error}`)
         }
+    }
+
+    const handleClearHosts = () => {
+        const defaultHosts = `# Copyright (c) 1993-2009 Microsoft Corp.
+#
+# This is a sample HOSTS file used by Microsoft TCP/IP for Windows.
+#
+# This file contains the mappings of IP addresses to host names. Each
+# entry should be kept on an individual line. The IP address should
+# be placed in the first column followed by the corresponding host name.
+# The IP address and the host name should be separated by at least one
+# space.
+#
+# Additionally, comments (such as these) may be inserted on individual
+# lines or following the machine name denoted by a '#' symbol.
+#
+# For example:
+#
+#      102.54.94.97     rhino.acme.com          # source server
+#       38.25.63.10     x.acme.com              # x client host
+
+# localhost name resolution is handled within DNS itself.
+#	127.0.0.1       localhost
+#	::1             localhost
+`
+        setHostsContent(defaultHosts)
+        addLog('SYSTEM', 'Hosts file reset to default template. Click Save to apply.')
     }
 
     const handleRestartAdmin = () => {
@@ -253,64 +302,68 @@ export function Tools() {
 
     return (
         <div className="h-full flex flex-col p-6 space-y-6 relative overflow-hidden">
+            {/* Background Ambient Glow */}
+            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[100px] pointer-events-none" />
+
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-wide text-white uppercase flex items-center gap-3">
-                        Network Tools
-                        <span className="text-sm font-mono font-normal text-muted-foreground bg-white/5 px-2 py-1 rounded border border-white/5 flex items-center gap-2">
-                            <Globe className="w-3.5 h-3.5 text-primary" />
+                    <h2 className="text-3xl font-bold tracking-tight text-white uppercase flex items-center gap-3 drop-shadow-lg">
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">Network Tools</span>
+                        <span className="text-xs font-mono font-bold text-cyan-300 bg-cyan-500/10 px-2 py-1 rounded border border-cyan-500/20 flex items-center gap-1.5 shadow-[0_0_15px_rgba(34,211,238,0.1)]">
+                            <Globe className="w-3.5 h-3.5" />
                             {currentDNS?.primary || 'DHCP'}
                         </span>
                     </h2>
-                    <p className="text-muted-foreground text-sm mt-1">
-                        Manage DNS and network configurations
+                    <p className="text-muted-foreground text-sm mt-1 font-medium">
+                        Advanced network configuration and diagnostics.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                     <button
                         onClick={applyBest}
                         disabled={applying}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/30 transition-colors text-xs font-medium text-primary disabled:opacity-50"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 hover:border-cyan-500/30 transition-all text-xs font-bold text-cyan-400 uppercase tracking-wide group disabled:opacity-50"
                         title="Apply recommended DNS"
                     >
-                        <Zap className="w-3.5 h-3.5" />
-                        <span>Quick Apply Best</span>
+                        <Zap className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                        <span>Quick Optimize</span>
                     </button>
                     <button
                         onClick={copyDNSSettings}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs font-medium text-muted-foreground hover:text-white"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-xs font-bold text-muted-foreground hover:text-white uppercase tracking-wide group"
                         title="Copy DNS settings to clipboard"
                     >
-                        <Copy className="w-3.5 h-3.5" />
+                        <Copy className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
                         <span>Copy DNS</span>
                     </button>
                     <button
                         onClick={exportConfig}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs font-medium text-muted-foreground hover:text-white"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-xs font-bold text-muted-foreground hover:text-white uppercase tracking-wide group"
                         title="Export configuration"
                     >
-                        <Download className="w-3.5 h-3.5" />
+                        <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
                         <span>Export Config</span>
                     </button>
                 </div>
             </div>
 
             {/* Speed Test Section */}
-            <div className="bg-[#0a0e13] border border-white/10 rounded-xl p-6">
-                <div className="flex items-center justify-between mb-4">
+            <div className="bg-[#0a0e13]/60 backdrop-blur-md border border-white/5 rounded-2xl p-6 relative z-10 shadow-lg">
+                <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-bold flex items-center gap-2 text-white uppercase tracking-wide">
-                        <Activity className="w-5 h-5 text-primary" />
+                        <Activity className="w-5 h-5 text-cyan-400" />
                         Network Speed Test
                     </h3>
                     <button
                         onClick={handleRunSpeedTest}
                         disabled={testingSpeed}
                         className={clsx(
-                            "px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2 text-xs uppercase tracking-wider",
+                            "px-5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 text-xs uppercase tracking-wider shadow-lg",
                             testingSpeed
-                                ? "bg-white/5 text-muted-foreground cursor-not-allowed"
-                                : "bg-primary text-white hover:bg-primary/90 shadow-sm"
+                                ? "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
+                                : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-cyan-500/20 hover:shadow-cyan-500/40 border border-transparent"
                         )}
                     >
                         {testingSpeed ? (
@@ -319,140 +372,70 @@ export function Tools() {
                                 TESTING...
                             </>
                         ) : (
-                            'START TEST'
+                            <>
+                                <Zap className="w-3.5 h-3.5" />
+                                START TEST
+                            </>
                         )}
                     </button>
                 </div>
 
-                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 flex items-start gap-3 mb-4">
-                    <AlertTriangle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
-                    <p className="text-xs text-muted-foreground">
-                        <span className="text-yellow-400 font-bold">Note:</span> Your internet connection may be slow or unresponsive during the download test.
-                    </p>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-black/20 rounded-lg p-4 border border-white/5 text-center">
-                        <div className="text-muted-foreground text-xs font-mono uppercase tracking-wider mb-2">Ping (Latency)</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-black/40 rounded-xl p-5 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2 z-10">Ping (Latency)</div>
                         <div className={clsx(
-                            "text-3xl font-bold font-mono",
-                            !speedTest ? "text-white/20" :
-                                speedTest.ping < 20 ? "text-green-400" :
-                                    speedTest.ping < 50 ? "text-yellow-400" : "text-red-400"
+                            "text-4xl font-black font-mono z-10 transition-colors",
+                            !speedTest ? "text-white/10" :
+                                speedTest.ping < 20 ? "text-emerald-400" :
+                                    speedTest.ping < 50 ? "text-amber-400" : "text-rose-400"
                         )}>
-                            {speedTest ? speedTest.ping : '--'} <span className="text-sm text-muted-foreground">ms</span>
+                            {speedTest ? speedTest.ping : '--'} <span className="text-sm font-bold text-muted-foreground">ms</span>
                         </div>
                     </div>
 
-                    <div className="bg-black/20 rounded-lg p-4 border border-white/5 text-center">
-                        <div className="text-muted-foreground text-xs font-mono uppercase tracking-wider mb-2">Jitter</div>
-                        <div className="text-3xl font-bold font-mono text-white">
-                            {speedTest ? speedTest.jitter : '--'} <span className="text-sm text-muted-foreground">ms</span>
+                    <div className="bg-black/40 rounded-xl p-5 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2 z-10">Jitter</div>
+                        <div className="text-4xl font-black font-mono text-white z-10">
+                            {speedTest ? speedTest.jitter : '--'} <span className="text-sm font-bold text-muted-foreground">ms</span>
                         </div>
                     </div>
 
-                    <div className="bg-black/20 rounded-lg p-4 border border-white/5 text-center">
-                        <div className="text-muted-foreground text-xs font-mono uppercase tracking-wider mb-2">Download</div>
-                        <div className="text-3xl font-bold font-mono text-primary">
-                            {speedTest ? speedTest.download : '--'} <span className="text-sm text-muted-foreground">Mbps</span>
+                    <div className="bg-black/40 rounded-xl p-5 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2 z-10">Download</div>
+                        <div className="text-4xl font-black font-mono text-cyan-400 z-10">
+                            {speedTest ? speedTest.download : '--'} <span className="text-sm font-bold text-muted-foreground">Mbps</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10">
                 {/* DNS Section */}
-                <div className="space-y-6">
+                <div className="space-y-6 flex flex-col h-full">
                     <div className="flex items-center justify-between">
                         <h3 className="text-lg font-bold flex items-center gap-2 text-white uppercase tracking-wide">
-                            <Globe className="w-5 h-5 text-primary" />
+                            <Globe className="w-5 h-5 text-cyan-400" />
                             DNS Providers
                         </h3>
-                        <button
-                            onClick={() => setShowComparison(!showComparison)}
-                            className="flex items-center gap-2 text-xs text-primary hover:text-primary/80"
-                        >
-                            <BarChart3 className="w-3.5 h-3.5" />
-                            {showComparison ? 'Hide' : 'Show'} Comparison
-                        </button>
-                    </div>
-
-                    {/* DNS Comparison Table */}
-                    <AnimatePresence>
-                        {showComparison && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="bg-[#0a0e13] border border-white/10 rounded-xl p-4 overflow-hidden"
+                        <div className="flex gap-2">
+                            <select
+                                value={dnsFilter}
+                                onChange={(e) => setDnsFilter(e.target.value as any)}
+                                className="bg-black/20 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500/50 transition-colors"
                             >
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-xs">
-                                        <thead>
-                                            <tr className="border-b border-white/10">
-                                                <th className="text-left p-2 text-muted-foreground font-bold">Provider</th>
-                                                <th className="text-left p-2 text-muted-foreground font-bold">Primary</th>
-                                                <th className="text-left p-2 text-muted-foreground font-bold">Type</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {dnsProviders.map(dns => (
-                                                <tr key={dns.id} className="border-b border-white/5 last:border-0">
-                                                    <td className="p-2 text-white font-mono">{dns.name}</td>
-                                                    <td className="p-2 text-primary font-mono">{dns.primary}</td>
-                                                    <td className="p-2">
-                                                        <span className={clsx(
-                                                            "text-[9px] px-1.5 py-0.5 rounded uppercase font-bold",
-                                                            dns.category === 'Fast' ? "bg-blue-500/10 text-blue-400" :
-                                                                dns.category === 'Secure' ? "bg-green-500/10 text-green-400" :
-                                                                    "bg-purple-500/10 text-purple-400"
-                                                        )}>
-                                                            {dns.category}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    {/* Search and Filter */}
-                    <div className="flex gap-2">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                            <input
-                                type="text"
-                                placeholder="Search DNS providers..."
-                                value={dnsSearch}
-                                onChange={(e) => setDnsSearch(e.target.value)}
-                                className="w-full bg-black/20 border border-white/5 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors h-[34px]"
-                            />
+                                <option value="All">All Types</option>
+                                <option value="Fast">Fast</option>
+                                <option value="Secure">Secure</option>
+                                <option value="Ad-blocking">Ad-blocking</option>
+                            </select>
                         </div>
-                        <select
-                            value={dnsFilter}
-                            onChange={(e) => setDnsFilter(e.target.value as any)}
-                            className="bg-black/20 border border-white/5 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-primary/50 transition-colors h-[34px]"
-                        >
-                            <option value="All">All Types</option>
-                            <option value="Fast">Fast</option>
-                            <option value="Secure">Secure</option>
-                            <option value="Ad-blocking">Ad-blocking</option>
-                        </select>
                     </div>
 
-                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 flex items-start gap-3">
-                        <AlertTriangle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
-                        <p className="text-xs text-muted-foreground">
-                            <span className="text-yellow-400 font-bold">Caution:</span> Changing DNS settings can affect your internet connectivity.
-                            If you lose connection, click "Reset to Default".
-                        </p>
-                    </div>
-
-                    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                        <AnimatePresence>
+                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 max-h-[600px]">
+                        <AnimatePresence mode='popLayout'>
                             {filteredDNS.map(dns => (
                                 <motion.div
                                     layout
@@ -460,19 +443,34 @@ export function Tools() {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95 }}
                                     key={dns.id}
-                                    className="bg-[#0a0e13] border border-white/10 rounded-xl p-4 hover:border-primary/30 transition-all group"
+                                    className={clsx(
+                                        "bg-[#0a0e13]/80 backdrop-blur-sm border rounded-xl p-5 transition-all duration-300 group relative overflow-hidden",
+                                        activeDNS === dns.id
+                                            ? "border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.05)]"
+                                            : "border-white/5 hover:border-cyan-500/30 hover:shadow-[0_0_15px_rgba(34,211,238,0.1)]"
+                                    )}
                                 >
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20 group-hover:border-primary/40 transition-colors">
-                                                <Globe className="w-4 h-4" />
+                                    {/* Active Glow Background */}
+                                    {activeDNS === dns.id && (
+                                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent pointer-events-none" />
+                                    )}
+
+                                    <div className="flex items-start justify-between mb-4 relative z-10">
+                                        <div className="flex items-center gap-4">
+                                            <div className={clsx(
+                                                "p-3 rounded-xl border transition-all duration-300",
+                                                activeDNS === dns.id
+                                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                                                    : "bg-cyan-500/10 border-cyan-500/20 text-cyan-400 group-hover:bg-cyan-500/20 group-hover:border-cyan-500/40"
+                                            )}>
+                                                <Server className="w-5 h-5" />
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-sm text-white tracking-wide">{dns.name}</h3>
-                                                <div className="flex gap-2 text-xs font-mono text-muted-foreground mt-0.5">
-                                                    <span className="text-primary">{dns.primary}</span>
+                                                <h3 className="font-bold text-sm text-white tracking-wide group-hover:text-cyan-200 transition-colors">{dns.name}</h3>
+                                                <div className="flex gap-2 text-xs font-mono text-muted-foreground mt-1">
+                                                    <span className="text-cyan-400 bg-cyan-500/10 px-1.5 rounded">{dns.primary}</span>
                                                     <span className="text-white/20">•</span>
-                                                    <span className="text-primary">{dns.secondary}</span>
+                                                    <span className="text-cyan-400 bg-cyan-500/10 px-1.5 rounded">{dns.secondary}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -480,9 +478,9 @@ export function Tools() {
                                             onClick={() => handleApplyDNS(dns.id, dns.primary, dns.secondary)}
                                             disabled={applying || activeDNS === dns.id}
                                             className={clsx(
-                                                "px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-2 text-xs uppercase tracking-wider whitespace-nowrap",
+                                                "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 text-xs uppercase tracking-wider whitespace-nowrap shadow-lg",
                                                 activeDNS === dns.id
-                                                    ? 'bg-green-500/10 text-green-400 cursor-default border border-green-500/20'
+                                                    ? 'bg-emerald-500/10 text-emerald-400 cursor-default border border-emerald-500/20'
                                                     : 'bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-muted-foreground hover:text-white'
                                             )}
                                         >
@@ -499,30 +497,30 @@ export function Tools() {
                                         </button>
                                     </div>
 
-                                    <p className="text-muted-foreground mb-3 text-xs leading-relaxed">{dns.description}</p>
+                                    <p className="text-muted-foreground mb-4 text-xs leading-relaxed relative z-10">{dns.description}</p>
 
-                                    <div className="grid grid-cols-2 gap-3 text-[10px]">
-                                        <div>
-                                            <h4 className="font-bold text-green-400 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
+                                    <div className="grid grid-cols-2 gap-4 text-[10px] relative z-10">
+                                        <div className="bg-black/20 p-2 rounded-lg border border-white/5">
+                                            <h4 className="font-bold text-emerald-400 mb-2 flex items-center gap-1.5 uppercase tracking-wide">
                                                 <Shield className="w-3 h-3" /> Pros
                                             </h4>
-                                            <ul className="space-y-1">
+                                            <ul className="space-y-1.5">
                                                 {dns.pros.map((pro, i) => (
-                                                    <li key={i} className="flex items-center gap-1.5 text-muted-foreground">
-                                                        <div className="w-1 h-1 rounded-full bg-green-400 flex-shrink-0" />
+                                                    <li key={i} className="flex items-start gap-1.5 text-muted-foreground">
+                                                        <div className="w-1 h-1 rounded-full bg-emerald-400 flex-shrink-0 mt-1" />
                                                         {pro}
                                                     </li>
                                                 ))}
                                             </ul>
                                         </div>
-                                        <div>
-                                            <h4 className="font-bold text-red-400 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
+                                        <div className="bg-black/20 p-2 rounded-lg border border-white/5">
+                                            <h4 className="font-bold text-rose-400 mb-2 flex items-center gap-1.5 uppercase tracking-wide">
                                                 <Lock className="w-3 h-3" /> Cons
                                             </h4>
-                                            <ul className="space-y-1">
+                                            <ul className="space-y-1.5">
                                                 {dns.cons.map((con, i) => (
-                                                    <li key={i} className="flex items-center gap-1.5 text-muted-foreground">
-                                                        <div className="w-1 h-1 rounded-full bg-red-400 flex-shrink-0" />
+                                                    <li key={i} className="flex items-start gap-1.5 text-muted-foreground">
+                                                        <div className="w-1 h-1 rounded-full bg-rose-400 flex-shrink-0 mt-1" />
                                                         {con}
                                                     </li>
                                                 ))}
@@ -540,38 +538,38 @@ export function Tools() {
                     <section className="space-y-4">
                         <div className="flex items-center justify-between">
                             <h3 className="text-lg font-bold flex items-center gap-2 text-white uppercase tracking-wide">
-                                <Shield className="w-5 h-5 text-primary" />
+                                <Shield className="w-5 h-5 text-cyan-400" />
                                 Custom DNS
                             </h3>
                             <button
                                 onClick={handleResetDNS}
                                 disabled={applying}
-                                className="text-xs text-yellow-400 hover:text-yellow-300 flex items-center gap-1"
+                                className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 font-bold uppercase tracking-wide transition-colors"
                             >
                                 <RotateCcw className="w-3 h-3" /> Reset to Default
                             </button>
                         </div>
 
-                        <div className="bg-[#0a0e13] border border-white/10 rounded-xl p-4 space-y-3">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Primary DNS</label>
+                        <div className="bg-[#0a0e13]/60 backdrop-blur-md border border-white/5 rounded-2xl p-5 space-y-4 shadow-lg">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground pl-1">Primary DNS</label>
                                     <input
                                         type="text"
                                         value={customPrimary}
                                         onChange={(e) => setCustomPrimary(e.target.value)}
                                         placeholder="8.8.8.8"
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 text-white placeholder:text-muted-foreground/30"
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-cyan-500/50 focus:bg-black/60 text-white placeholder:text-muted-foreground/30 transition-all"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Secondary DNS</label>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground pl-1">Secondary DNS</label>
                                     <input
                                         type="text"
                                         value={customSecondary}
                                         onChange={(e) => setCustomSecondary(e.target.value)}
                                         placeholder="8.8.4.4"
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 text-white placeholder:text-muted-foreground/30"
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-cyan-500/50 focus:bg-black/60 text-white placeholder:text-muted-foreground/30 transition-all"
                                     />
                                 </div>
                             </div>
@@ -579,10 +577,10 @@ export function Tools() {
                                 onClick={handleApplyCustomDNS}
                                 disabled={!customPrimary || applying}
                                 className={clsx(
-                                    "w-full py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all",
+                                    "w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-lg",
                                     !customPrimary || applying
-                                        ? "bg-white/5 text-muted-foreground cursor-not-allowed"
-                                        : "bg-primary text-white hover:bg-primary/90"
+                                        ? "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
+                                        : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-cyan-500/20 hover:shadow-cyan-500/40 border border-transparent"
                                 )}
                             >
                                 {applying ? 'APPLYING...' : 'APPLY CUSTOM DNS'}
@@ -593,71 +591,82 @@ export function Tools() {
                     {/* Hosts File Section */}
                     <section className="space-y-4">
                         <h3 className="text-lg font-bold flex items-center gap-2 text-white uppercase tracking-wide">
-                            <FileText className="w-5 h-5 text-primary" />
+                            <FileCode className="w-5 h-5 text-cyan-400" />
                             Hosts File Editor
                         </h3>
 
-                        <div className="bg-[#0a0e13] border border-white/10 rounded-xl p-4 space-y-3">
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">System Hosts File</label>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={fetchHosts}
-                                            disabled={loadingHosts}
-                                            className="text-xs text-primary hover:text-primary/80 flex items-center gap-1"
-                                        >
-                                            <RefreshCw className={clsx("w-3 h-3", loadingHosts && "animate-spin")} /> Reload
-                                        </button>
-                                        <button
-                                            onClick={handleSaveHosts}
-                                            disabled={savingHosts}
-                                            className={clsx(
-                                                "px-3 py-1 rounded text-xs flex items-center gap-1 transition-all",
-                                                savingHosts
-                                                    ? "bg-white/5 text-muted-foreground"
-                                                    : "bg-green-600 text-white hover:bg-green-500"
-                                            )}
-                                        >
-                                            <Save className="w-3 h-3" /> {savingHosts ? 'Saving...' : 'Save'}
-                                        </button>
-                                    </div>
+                        <div className="bg-[#0a0e13]/60 backdrop-blur-md border border-white/5 rounded-2xl p-5 space-y-4 shadow-lg flex flex-col h-[400px]">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                    <FileText className="w-3.5 h-3.5" /> System Hosts
+                                </label>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handleClearHosts}
+                                        className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 font-bold uppercase tracking-wide transition-colors mr-2"
+                                    >
+                                        <Trash2 className="w-3 h-3" /> Reset
+                                    </button>
+                                    <button
+                                        onClick={fetchHosts}
+                                        disabled={loadingHosts}
+                                        className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold uppercase tracking-wide transition-colors"
+                                    >
+                                        <RefreshCw className={clsx("w-3 h-3", loadingHosts && "animate-spin")} /> Reload
+                                    </button>
+                                    <button
+                                        onClick={handleSaveHosts}
+                                        disabled={savingHosts}
+                                        className={clsx(
+                                            "px-3 py-1 rounded-lg text-xs flex items-center gap-1 transition-all font-bold uppercase tracking-wide",
+                                            savingHosts
+                                                ? "bg-white/5 text-muted-foreground"
+                                                : "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-500/20"
+                                        )}
+                                    >
+                                        <Save className="w-3 h-3" /> {savingHosts ? 'Saving...' : 'Save'}
+                                    </button>
                                 </div>
-                                <textarea
-                                    value={hostsContent}
-                                    onChange={(e) => setHostsContent(e.target.value)}
-                                    className="w-full h-48 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 text-white resize-none"
-                                    placeholder="Loading hosts file..."
-                                />
                             </div>
+
+                            <textarea
+                                value={hostsContent}
+                                onChange={(e) => setHostsContent(e.target.value)}
+                                className="flex-1 w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs font-mono focus:outline-none focus:border-cyan-500/50 focus:bg-black/60 text-white resize-none custom-scrollbar leading-relaxed"
+                                placeholder="Loading hosts file..."
+                                spellCheck={false}
+                            />
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                                     <Download className="w-3 h-3" /> Quick Add Blocklist
                                 </label>
-                                <div className="space-y-1.5">
+                                <div className="grid grid-cols-1 gap-2 max-h-[120px] overflow-y-auto custom-scrollbar pr-1">
                                     {blocklists.map((list, i) => (
                                         <button
                                             key={i}
                                             onClick={() => handleAddBlocklist(list.url, list.name)}
-                                            className="w-full py-1.5 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-left flex items-center justify-between transition-all"
+                                            className="w-full py-2 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-left flex items-center justify-between transition-all group"
                                         >
-                                            <span className="text-muted-foreground font-mono">{list.name}</span>
-                                            <Download className="w-3 h-3 text-primary" />
+                                            <div className="flex flex-col">
+                                                <span className="text-white font-bold">{list.name}</span>
+                                                <span className="text-[10px] text-muted-foreground">{list.description}</span>
+                                            </div>
+                                            <Download className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
                                         </button>
                                     ))}
                                 </div>
                             </div>
 
-                            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-xs space-y-2">
-                                <p className="text-red-400 font-bold">⚠️ Administrator Rights Required</p>
-                                <p className="text-muted-foreground">Modifying the hosts file requires administrator privileges.</p>
-                                <button
-                                    onClick={handleRestartAdmin}
-                                    className="text-primary hover:text-primary/80 underline"
-                                >
-                                    Click here to restart as Administrator
-                                </button>
+                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-3">
+                                <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                                <div className="space-y-1">
+                                    <p className="text-xs font-bold text-amber-400 uppercase tracking-wide">Administrator Rights Required</p>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                        Modifying the hosts file requires administrator privileges. If saving fails,
+                                        <button onClick={handleRestartAdmin} className="text-amber-300 hover:underline ml-1">click here to restart as Admin</button>.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </section>

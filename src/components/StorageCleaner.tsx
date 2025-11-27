@@ -1,4 +1,4 @@
-import { Trash2, AlertTriangle, ChevronDown, ChevronUp, FileText, RefreshCw, Search, Filter, Download, Copy, CheckCircle } from 'lucide-react'
+import { Trash2, AlertTriangle, ChevronDown, ChevronUp, FileText, RefreshCw, Search, Filter, Download, Copy, CheckCircle, Gamepad2, Database, AlertOctagon, Zap, Shield } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
 import { clsx } from 'clsx'
 import { useLog } from '../context/LogContext'
@@ -78,6 +78,38 @@ export function StorageCleaner() {
             description: 'Old update files',
             risk: 'Medium',
             riskDescription: 'Fixes update errors. Do not use if updates are pending.',
+            isScanning: true
+        },
+        {
+            id: 'discord_cache',
+            name: 'Discord Cache',
+            description: 'Cached images and media from Discord',
+            risk: 'Low',
+            riskDescription: 'Safe. Frees up space without affecting Discord functionality.',
+            isScanning: true
+        },
+        {
+            id: 'steam_cache',
+            name: 'Steam App Cache',
+            description: 'Steam application cache files',
+            risk: 'Low',
+            riskDescription: 'Safe. Steam will rebuild necessary files.',
+            isScanning: true
+        },
+        {
+            id: 'shader_cache',
+            name: 'DirectX Shader Cache',
+            description: 'Compiled shaders for games',
+            risk: 'Low',
+            riskDescription: 'Safe. May cause stuttering in games until rebuilt.',
+            isScanning: true
+        },
+        {
+            id: 'crash_dumps',
+            name: 'System Crash Dumps',
+            description: 'Memory dumps from app crashes',
+            risk: 'Low',
+            riskDescription: 'Safe. Only needed for debugging crashes.',
             isScanning: true
         }
     ])
@@ -214,66 +246,71 @@ export function StorageCleaner() {
 
     const totalFiles = categories.reduce((sum, c) => sum + (c.scannedFiles?.length || 0), 0)
 
+    const getCategoryIcon = (id: string) => {
+        if (id.includes('discord') || id.includes('steam') || id.includes('shader')) return <Gamepad2 className="w-5 h-5" />
+        if (id.includes('chrome') || id.includes('edge')) return <Database className="w-5 h-5" />
+        if (id.includes('crash')) return <AlertOctagon className="w-5 h-5" />
+        return <Trash2 className="w-5 h-5" />
+    }
+
     return (
         <div className="h-full flex flex-col p-6 space-y-6 relative overflow-hidden">
+            {/* Background Ambient Glow */}
+            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-violet-500/5 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[100px] pointer-events-none" />
+
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-wide text-white uppercase flex items-center gap-3">
-                        Storage Cleaner
-                        <span className="text-sm font-mono font-normal text-muted-foreground bg-white/5 px-2 py-1 rounded border border-white/5 flex items-center gap-2">
-                            <Trash2 className="w-3.5 h-3.5 text-primary" />
-                            {formatSize(totalSizeToFree)} TO FREE
+                    <h2 className="text-3xl font-bold tracking-tight text-white uppercase flex items-center gap-3 drop-shadow-lg">
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">Storage Cleaner</span>
+                        <span className="text-xs font-mono font-bold text-violet-300 bg-violet-500/10 px-2 py-1 rounded border border-violet-500/20 flex items-center gap-1.5 shadow-[0_0_15px_rgba(139,92,246,0.1)]">
+                            <Trash2 className="w-3.5 h-3.5" />
+                            FREEABLE: <span className="text-violet-400 font-bold">{formatSize(totalSizeToFree)}</span>
                         </span>
                     </h2>
-                    <p className="text-muted-foreground text-sm mt-1">
-                        {selected.size} selected • {totalFiles.toLocaleString()} total files found
+                    <p className="text-muted-foreground text-sm mt-1 font-medium">
+                        Deep clean your system to reclaim disk space and improve performance.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                     <button
                         onClick={selectSafe}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 hover:border-green-500/30 transition-colors text-xs font-medium text-green-400"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/30 transition-all text-xs font-bold text-emerald-400 uppercase tracking-wide group"
                         title="Select all low-risk items"
                     >
-                        <CheckCircle className="w-3.5 h-3.5" />
+                        <CheckCircle className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
                         <span>Select Safe</span>
                     </button>
                     <button
-                        onClick={copyReport}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs font-medium text-muted-foreground hover:text-white"
-                        title="Copy report to clipboard"
-                    >
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Copy Report</span>
-                    </button>
-                    <button
                         onClick={exportReport}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs font-medium text-muted-foreground hover:text-white"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-xs font-bold text-muted-foreground hover:text-white uppercase tracking-wide group"
                         title="Export report to file"
                     >
-                        <Download className="w-3.5 h-3.5" />
+                        <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
                         <span>Export</span>
                     </button>
                     <button
                         onClick={scanCategories}
                         disabled={cleaning || categories.some(c => c.isScanning)}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs font-medium text-muted-foreground hover:text-white disabled:opacity-50"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-xs font-bold text-muted-foreground hover:text-white uppercase tracking-wide group disabled:opacity-50"
                         title="Rescan all"
                     >
-                        <RefreshCw className={clsx("w-3.5 h-3.5", categories.some(c => c.isScanning) && "animate-spin")} />
-                        <span>Refresh</span>
+                        <RefreshCw className={clsx("w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500", categories.some(c => c.isScanning) && "animate-spin")} />
+                        <span>Rescan</span>
                     </button>
                 </div>
             </div>
 
             {/* Warning Banner */}
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+            <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4 relative z-10 backdrop-blur-sm">
+                <div className="flex items-start gap-4">
+                    <div className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                        <AlertTriangle className="w-5 h-5 text-amber-400" />
+                    </div>
                     <div className="space-y-1">
-                        <h3 className="text-yellow-400 font-bold uppercase text-xs tracking-wide">Warning: Irreversible Action</h3>
-                        <p className="text-muted-foreground text-xs leading-relaxed">
+                        <h3 className="text-amber-400 font-bold uppercase text-xs tracking-widest">Irreversible Action</h3>
+                        <p className="text-slate-400 text-xs leading-relaxed">
                             Files deleted here cannot be recovered. Review the file lists and risk assessments carefully before proceeding.
                         </p>
                     </div>
@@ -281,23 +318,25 @@ export function StorageCleaner() {
             </div>
 
             {/* Controls Bar */}
-            <div className="flex flex-col lg:flex-row items-center gap-4 p-1 bg-white/[0.02] border border-white/5 rounded-xl">
+            <div className="flex flex-col lg:flex-row items-center gap-4 p-1.5 bg-[#0a0e13]/60 backdrop-blur-md border border-white/5 rounded-2xl relative z-10 shadow-lg">
                 {/* Filter Tabs */}
-                <div className="flex p-1 bg-black/20 rounded-lg flex-shrink-0 overflow-x-auto">
+                <div className="flex p-1 bg-black/20 rounded-xl flex-shrink-0 overflow-x-auto scrollbar-none">
                     {(['All', 'Selected', 'Low', 'Medium', 'High'] as const).map(f => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
                             className={clsx(
-                                "px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap",
-                                filter === f ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-white"
+                                "px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-2",
+                                filter === f ? "bg-violet-600 text-white shadow-lg shadow-violet-500/20" : "text-muted-foreground hover:text-white hover:bg-white/5"
                             )}
                         >
                             {f}
                             {f !== 'All' && f !== 'Selected' && (
                                 <span className={clsx(
-                                    "ml-1.5 px-1 rounded text-[9px]",
-                                    f === 'Low' ? "bg-green-500/20" : f === 'Medium' ? "bg-yellow-500/20" : "bg-red-500/20"
+                                    "px-1.5 py-0.5 rounded text-[9px]",
+                                    f === 'Low' ? "bg-emerald-500/20 text-emerald-300" :
+                                        f === 'Medium' ? "bg-amber-500/20 text-amber-300" :
+                                            "bg-rose-500/20 text-rose-300"
                                 )}>
                                     {categories.filter(c => c.risk === f).length}
                                 </span>
@@ -310,13 +349,13 @@ export function StorageCleaner() {
 
                 {/* Search */}
                 <div className="relative w-full lg:w-64 flex-shrink-0 ml-auto">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <input
                         type="text"
                         placeholder="Search categories..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-black/20 border border-white/5 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors h-[34px]"
+                        className="w-full bg-black/20 border border-white/5 rounded-xl pl-10 pr-4 py-2.5 text-xs font-medium text-white placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 focus:bg-black/40 transition-all"
                     />
                 </div>
 
@@ -325,21 +364,21 @@ export function StorageCleaner() {
                     onClick={handleClean}
                     disabled={selected.size === 0 || cleaning}
                     className={clsx(
-                        "flex items-center gap-2 px-4 py-1.5 rounded-lg font-bold transition-all uppercase tracking-wider text-xs whitespace-nowrap",
+                        "flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all uppercase tracking-wider text-xs whitespace-nowrap shadow-lg",
                         selected.size > 0 && !cleaning
-                            ? "bg-primary text-white hover:bg-primary/90 shadow-sm"
+                            ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-violet-500/20 hover:shadow-violet-500/40"
                             : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
                     )}
                 >
-                    <Trash2 className={clsx("w-3.5 h-3.5", cleaning && "animate-pulse")} />
+                    <Trash2 className={clsx("w-4 h-4", cleaning && "animate-bounce")} />
                     {cleaning ? 'CLEANING...' : 'CLEAN SELECTED'}
                 </button>
             </div>
 
             {/* Categories List */}
-            <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                <div className="grid grid-cols-1 gap-3 pb-6">
-                    <AnimatePresence>
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar relative z-10 pb-6">
+                <div className="grid grid-cols-1 gap-3">
+                    <AnimatePresence mode='popLayout'>
                         {filteredCategories.map(category => (
                             <motion.div
                                 layout
@@ -348,70 +387,93 @@ export function StorageCleaner() {
                                 exit={{ opacity: 0, scale: 0.95 }}
                                 key={category.id}
                                 className={clsx(
-                                    "group bg-[#0a0e13] border rounded-xl transition-all overflow-hidden",
-                                    selected.has(category.id) ? "border-primary/30 shadow-[0_0_10px_rgba(124,58,237,0.05)]" : "border-white/5 hover:border-white/10"
+                                    "group bg-[#0a0e13]/80 backdrop-blur-sm border rounded-xl transition-all duration-300 overflow-hidden",
+                                    selected.has(category.id)
+                                        ? "border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)]"
+                                        : "border-white/5 hover:border-white/10"
                                 )}
                             >
+                                {/* Active Glow Background */}
+                                {selected.has(category.id) && (
+                                    <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-transparent pointer-events-none" />
+                                )}
+
                                 <div
-                                    className="p-4 cursor-pointer hover:bg-white/[0.02] transition-colors"
+                                    className="p-4 cursor-pointer relative z-10"
                                     onClick={() => toggleSelection(category.id)}
                                 >
-                                    <div className="flex items-start gap-3">
+                                    <div className="flex items-start gap-4">
                                         <div className={clsx(
-                                            "w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition-all",
+                                            "w-6 h-6 rounded-lg border flex items-center justify-center flex-shrink-0 mt-0.5 transition-all duration-300",
                                             selected.has(category.id)
-                                                ? "bg-primary border-primary shadow-[0_0_8px_currentColor]"
-                                                : "border-white/20 group-hover:border-primary/50"
+                                                ? "bg-violet-500 border-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.5)]"
+                                                : "bg-white/5 border-white/10 group-hover:border-white/30"
                                         )}>
                                             {selected.has(category.id) && (
-                                                <div className="w-2.5 h-2.5 bg-white rounded-[1px]" />
+                                                <CheckCircle className="w-4 h-4 text-white" />
                                             )}
                                         </div>
+
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <div className="flex items-center gap-2">
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={clsx("p-1.5 rounded-lg", selected.has(category.id) ? "bg-violet-500/10 text-violet-400" : "bg-white/5 text-muted-foreground")}>
+                                                        {getCategoryIcon(category.id)}
+                                                    </div>
                                                     <h3 className={clsx(
                                                         "font-bold text-sm tracking-wide transition-colors",
-                                                        selected.has(category.id) ? "text-white" : "text-muted-foreground group-hover:text-white"
+                                                        selected.has(category.id) ? "text-white" : "text-white/80 group-hover:text-white"
                                                     )}>
                                                         {category.name}
                                                     </h3>
                                                     <span className={clsx(
-                                                        "text-[10px] px-1.5 py-0.5 rounded font-mono font-bold uppercase border",
-                                                        category.risk === 'Low' ? "border-green-500/30 text-green-400 bg-green-500/10" :
-                                                            category.risk === 'Medium' ? "border-yellow-500/30 text-yellow-400 bg-yellow-500/10" :
-                                                                "border-red-500/30 text-red-400 bg-red-500/10"
+                                                        "text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border flex items-center gap-1",
+                                                        category.risk === 'Low' ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5" :
+                                                            category.risk === 'Medium' ? "border-amber-500/20 text-amber-400 bg-amber-500/5" :
+                                                                "border-rose-500/20 text-rose-400 bg-rose-500/5"
                                                     )}>
+                                                        <Shield className="w-2.5 h-2.5" />
                                                         {category.risk} Risk
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     {category.isScanning ? (
-                                                        <span className="text-muted-foreground text-xs animate-pulse">Scanning...</span>
+                                                        <span className="text-violet-400 text-xs font-bold animate-pulse flex items-center gap-2">
+                                                            <RefreshCw className="w-3 h-3 animate-spin" />
+                                                            SCANNING...
+                                                        </span>
                                                     ) : (
                                                         <>
-                                                            <span className="text-muted-foreground text-xs">
+                                                            <span className="text-muted-foreground text-xs font-medium">
                                                                 {(category.scannedFiles?.length || 0).toLocaleString()} files
                                                             </span>
-                                                            <span className={clsx(
-                                                                "font-mono text-sm font-bold",
-                                                                category.totalSize && category.totalSize > 0 ? "text-primary" : "text-muted-foreground"
+                                                            <div className={clsx(
+                                                                "px-2 py-1 rounded-md font-mono text-xs font-bold border",
+                                                                category.totalSize && category.totalSize > 0
+                                                                    ? "bg-violet-500/10 border-violet-500/20 text-violet-300"
+                                                                    : "bg-white/5 border-white/10 text-muted-foreground"
                                                             )}>
                                                                 {formatSize(category.totalSize)}
-                                                            </span>
+                                                            </div>
                                                         </>
                                                     )}
                                                 </div>
                                             </div>
-                                            <p className="text-xs text-muted-foreground mb-1">{category.description}</p>
-                                            <p className={clsx(
-                                                "text-xs",
-                                                category.risk === 'Low' ? "text-green-400/70" :
-                                                    category.risk === 'Medium' ? "text-yellow-400/70" :
-                                                        "text-red-400/70"
-                                            )}>
-                                                <span className="font-bold">Note:</span> {category.riskDescription}
-                                            </p>
+                                            <p className="text-xs text-muted-foreground mb-2 pl-11">{category.description}</p>
+                                            <div className="pl-11 flex items-center gap-2">
+                                                <AlertTriangle className={clsx("w-3 h-3",
+                                                    category.risk === 'Low' ? "text-emerald-500/50" :
+                                                        category.risk === 'Medium' ? "text-amber-500/50" : "text-rose-500/50"
+                                                )} />
+                                                <p className={clsx(
+                                                    "text-[10px] font-medium",
+                                                    category.risk === 'Low' ? "text-emerald-500/70" :
+                                                        category.risk === 'Medium' ? "text-amber-500/70" :
+                                                            "text-rose-500/70"
+                                                )}>
+                                                    {category.riskDescription}
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -423,38 +485,47 @@ export function StorageCleaner() {
                                             e.stopPropagation()
                                             setExpandedCategory(expandedCategory === category.id ? null : category.id)
                                         }}
-                                        className="w-full px-4 py-2 flex items-center justify-between text-xs text-muted-foreground hover:text-white hover:bg-white/5 transition-colors"
+                                        className="w-full px-4 py-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-white hover:bg-white/5 transition-colors"
                                     >
-                                        <span className="flex items-center gap-2">
+                                        <span className="flex items-center gap-2 pl-12">
                                             <FileText className="w-3 h-3" />
-                                            {expandedCategory === category.id ? 'Hide Files' : 'Show Files'} ({category.scannedFiles?.length || 0})
+                                            {expandedCategory === category.id ? 'Hide Files' : 'Show Files'}
                                         </span>
                                         {expandedCategory === category.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                                     </button>
 
-                                    {expandedCategory === category.id && (
-                                        <div className="px-4 pb-4 max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                                            {category.scannedFiles && category.scannedFiles.length > 0 ? (
-                                                <div className="space-y-1">
-                                                    {category.scannedFiles.slice(0, 50).map((file, idx) => (
-                                                        <div key={idx} className="flex items-center justify-between text-[10px] text-muted-foreground hover:text-white py-0.5 border-b border-white/5 last:border-0">
-                                                            <span className="truncate max-w-[70%] font-mono" title={file.path}>{file.path}</span>
-                                                            <span className="text-primary/70 font-mono">{formatSize(file.size)}</span>
+                                    <AnimatePresence>
+                                        {expandedCategory === category.id && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="px-4 pb-4 overflow-hidden"
+                                            >
+                                                <div className="max-h-60 overflow-y-auto custom-scrollbar bg-[#05070a] rounded-lg border border-white/5 p-2">
+                                                    {category.scannedFiles && category.scannedFiles.length > 0 ? (
+                                                        <div className="space-y-0.5">
+                                                            {category.scannedFiles.slice(0, 50).map((file, idx) => (
+                                                                <div key={idx} className="flex items-center justify-between text-[10px] text-muted-foreground hover:text-white py-1 px-2 rounded hover:bg-white/5 transition-colors">
+                                                                    <span className="truncate max-w-[70%] font-mono" title={file.path}>{file.path}</span>
+                                                                    <span className="text-violet-400/70 font-mono">{formatSize(file.size)}</span>
+                                                                </div>
+                                                            ))}
+                                                            {category.scannedFiles.length > 50 && (
+                                                                <div className="text-[10px] text-center text-muted-foreground pt-2 italic font-medium">
+                                                                    ...and {category.scannedFiles.length - 50} more files
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    ))}
-                                                    {category.scannedFiles.length > 50 && (
-                                                        <div className="text-[10px] text-center text-muted-foreground pt-2 italic">
-                                                            ...and {category.scannedFiles.length - 50} more files
+                                                    ) : (
+                                                        <div className="text-[10px] text-muted-foreground italic text-center py-4">
+                                                            No files found to clean.
                                                         </div>
                                                     )}
                                                 </div>
-                                            ) : (
-                                                <div className="text-[10px] text-muted-foreground italic text-center py-2">
-                                                    No files found to clean.
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             </motion.div>
                         ))}
@@ -462,13 +533,13 @@ export function StorageCleaner() {
 
                     {filteredCategories.length === 0 && (
                         <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-                            <div className="p-4 bg-white/5 rounded-full mb-3">
-                                <Search className="w-8 h-8 opacity-50" />
+                            <div className="p-6 bg-white/5 rounded-full mb-4 border border-white/5">
+                                <Search className="w-10 h-10 opacity-30" />
                             </div>
-                            <p className="text-sm">No categories found matching your filters.</p>
+                            <p className="text-sm font-medium">No categories found matching your filters.</p>
                             <button
                                 onClick={() => { setSearchTerm(''); setFilter('All'); }}
-                                className="mt-2 text-primary text-xs hover:underline"
+                                className="mt-3 text-violet-400 text-xs font-bold uppercase tracking-wide hover:text-violet-300 hover:underline"
                             >
                                 Clear filters
                             </button>
